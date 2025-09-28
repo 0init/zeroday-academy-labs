@@ -1,0 +1,200 @@
+Hack the Trail – Win a Flipper Zero
+Phase 1: AWARENESS – SPOTLIGHT THE PRIZE
+
+🔹 Campaign Overview
+
+We're launching a 7-stage cybersecurity scavenger hunt hosted on a private platform. The prize is a Flipper Zero, a popular multi-tool among ethical hackers. To join, participants pay a $10 subscription fee and unlock the private hunt panel. The campaign will rely on content, storytelling, and urgency to drive registrations.
+
+Objectives
+
+Rebuild awareness of the Flipper Zero among cybersecurity learners
+
+Grow our Instagram following with real cyber-interested people
+
+Build hype around the Flipper Zero
+
+Get users to register for the scavenger hunt
+
+Campaign Message: "Outsmart the hunt. Access your Flipper."
+CTA (General): Hack. Hunt. Win.  |  Join the hunt.  |  Hunt for the Flipper.
+CTA (Phase 1): You’ll get your shot — stay close.
+
+Target Audience
+
+Region: Türkiye + GCC (KSA, Kuwait, Oman)
+
+Profile: Beginner-level cybersecurity learners, students, and junior professionals
+
+Language: Comfortable with basic English in cybersecurity contexts
+
+KPIs
+
+Increase followers from the cybersecurity community by 10%
+
+Improve post engagement rate by 15–20%
+
+Reach 100–150 active hunt participants
+
+🔹 Instagram – Owned Content
+
+Post 1: “This tool needs no intro — but here’s why it’s still on top.”Carousel PostGoal: Remind cybersecurity-savvy followers of the Flipper Zero’s practical power.
+
+Caption Points:
+
+You don’t need an introduction. Just a reminder.
+
+Clone RFID badges
+
+Replay Sub-GHz signals
+
+Emulate keyboards via BadUSB
+
+Control anything with IR
+
+It’s not hype. It’s hardware. And it works.
+
+If you’ve been wanting one… you’ll soon get the chance to earn it.
+
+Post 2: “Not for everyone. Definitely for you.”Mini Carousel (3 slides)Goal: Build a sense of earned access and belonging.
+
+Slides:
+
+Not for everyone.
+
+Definitely for you.
+
+You already know how this works. You already want one. We’re just giving you a way in.
+
+Post 3: “Earn it. Don’t just win it.”Static or Text-Led VisualGoal: Tease the upcoming challenge and filter the right audience.
+
+Caption:
+It’s not about luck.It’s not about hype.You’ll get your shot —But only if you’re ready to put in the work.Something is coming.And it’s not for everyone.
+
+🔹 Instagram Stories (4 Total)
+
+Goal: Build hype and tease access to the Flipper Zero with confident and interactive stories.
+
+Story 1: Feature Spotlight
+
+Slide 1: “Do you know everything the Flipper Zero can do?” (visuals: RFID, IR, BadUSB)
+
+Slide 2: “Which feature would you use first?”→ Poll Sticker: BadUSB vs RFID Clone
+
+Story 2: Reminder
+
+Slide 1: “Still thinking about the Flipper Zero?” (glitched close-up)
+
+Slide 2: “Yeah. Us too.” (Overlay: “You might get your chance soon.”)
+
+Slide 3: “How bad do you want it?”→ Slider Sticker: Be honest 🔥
+
+Story 3: Hacker Mode Tease
+
+Slide 1: Flipper doing something cybery (Overlay: “The tool is real.”)
+
+Slide 2: Red-glitch effect (Overlay: “But you’ll have to earn it.”)
+
+Slide 3: “Something’s coming.”→ Countdown Sticker
+
+Story 4: Interactive Prompt
+
+Slide: “What would YOU do with the Flipper Zero?” (Question box)
+
+Follow-up text: “Access to the Flipper Zero is coming.”
+
+🔹 Twitter – Owned Content
+
+Tweet 1: “Not for everyone. Definitely for you.”
+Tweet 2: Poll — “Which Flipper feature would you use first?” [BadUSB vs RFID Clone]
+Tweet 3: Thread — “Why cybersecurity people love the Flipper Zero.”
+Tweet 4: Short post: “One of the Flipper’s wildest powers: BadUSB. Learn it. Use it. You might need it soon.”
+Tweet 5: CTA: “Your shot is coming. Follow to stay close.”
+Tweet 6: Engagement: “Tag a friend who wants a Flipper Zero.”
+
+🔹 LinkedIn – Owned Content
+
+Post 1: “Why the Flipper Zero is more than just a tool.”Educational breakdown of features and how they apply in real-world scenarios.
+
+Post 2: “Zeroday Academy is launching something new...”Build campaign awareness and tease the interactive style of the challenge.
+
+Post 3: “Real challenge. Real reward. Real tool.”Value-driven teaser that speaks to the core of ZDA’s hands-on learning approach.
+
+🔹 Telegram – Owned Content
+
+Post 1: Flipper Zero Deep Dive“You already know the Flipper Zero. But here’s a quick reminder why it’s the tool every cybersecurity learner wants.”
+
+Bullet points:
+
+Clone RFID badges
+
+Send/receive Sub-GHz
+
+Run BadUSB payloads
+
+Control anything with IRNot just a gadget. A cyber companion.
+
+Post 2: Something is Brewing“We’ve got something in the works.
+Not a giveaway.
+Not a promo.
+A challenge.
+Only for the curious. Stay close.”
+
+Post 3: Tease the Hunt“It’s not for sale.
+It’s not free.
+You’ll hunt for it.
+The Flipper Zero is at the end of something special.”
+
+🔹 Ads
+
+Ad 1:
+“Know what this is? Good. You’re who we’re looking for.”Stay close. The challenge is coming.Visual: Glitched Flipper, hacker-coded vibe
+
+Ad 2:
+“You won’t buy it — you’ll hunt for it.”“The Flipper Zero can be yours… if you make it to the end.”
+
+🔹 Phase 1 Timeline (All Platforms)
+
+Instagram
+
+Day 1: Post 1 + Ad 1
+
+Day 2: Story 1
+
+Day 3: Post 2 + Story 2
+
+Day 4: Ad 2
+
+Day 5: Post 3
+
+Day 6: Story 4
+
+Twitter
+
+Day 1: Teaser Tweet
+
+Day 2: Poll
+
+Day 3: Thread
+
+Day 4: Educational Tweet
+
+Day 5: CTA Tweet
+
+Day 6: Engagement Prompt
+
+LinkedIn
+
+Day 2: Educational Post
+
+Day 4: Campaign Teaser
+
+Day 6: Value/CTA Post
+
+Telegram
+
+Day 2: Flipper Deep Dive
+
+Day 4: Something Brewing
+
+Day 6: Hunt Teaser
+
