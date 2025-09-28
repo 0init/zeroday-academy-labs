@@ -359,6 +359,11 @@ export async function registerBeginnerRoutes(app: Express): Promise<Server> {
     });
   });
 
+  // Fallback route for SPA - serve main HTML file for any non-API route
+  app.get('*', (req: Request, res: Response) => {
+    res.sendFile('index-beginner.html', { root: 'dist/beginner/public' });
+  });
+
   // Create HTTP server
   const httpServer = createServer(app);
   return httpServer;
