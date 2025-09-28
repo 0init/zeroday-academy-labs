@@ -406,6 +406,11 @@ export async function registerIntermediateRoutes(app: Express): Promise<Server> 
     return res.json({ errors: [{ message: 'Query not supported' }] });
   });
 
+  // Fallback route for SPA - serve main HTML file for any non-API route
+  app.get('*', (req: Request, res: Response) => {
+    res.sendFile('index-intermediate.html', { root: 'dist/intermediate/public' });
+  });
+
   // Create HTTP server
   const httpServer = createServer(app);
   return httpServer;
