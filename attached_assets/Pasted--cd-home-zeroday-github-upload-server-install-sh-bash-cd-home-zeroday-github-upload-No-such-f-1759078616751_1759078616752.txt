@@ -1,0 +1,54 @@
+ cd /home/zeroday/github-upload
+./server-install.sh
+bash: cd: /home/zeroday/github-upload: No such file or directory
+🚀 Starting Zeroday Academy Server Installation...
+==================================================
+📦 Updating system packages...
+[sudo] password for zeroday:
+Ign:1 http://security.ubuntu.com/ubuntu oracular-security InRelease
+Ign:2 http://mirrors.digitalocean.com/ubuntu oracular InRelease
+Err:3 http://security.ubuntu.com/ubuntu oracular-security Release
+  404  Not Found [IP: 185.125.190.36 80]
+Ign:4 http://mirrors.digitalocean.com/ubuntu oracular-updates InRelease
+Hit:5 https://deb.nodesource.com/node_20.x nodistro InRelease
+Hit:6 https://repos-droplet.digitalocean.com/apt/droplet-agent main InRelease
+Ign:7 http://mirrors.digitalocean.com/ubuntu oracular-backports InRelease
+Err:8 http://mirrors.digitalocean.com/ubuntu oracular Release
+  404  Not Found [IP: 172.67.148.71 80]
+Err:9 http://mirrors.digitalocean.com/ubuntu oracular-updates Release
+  404  Not Found [IP: 172.67.148.71 80]
+Err:10 http://mirrors.digitalocean.com/ubuntu oracular-backports Release
+  404  Not Found [IP: 172.67.148.71 80]
+Error: The repository 'http://security.ubuntu.com/ubuntu oracular-security Release' no longer has a Release file.
+Notice: Updating from such a repository can't be done securely, and is therefore disabled by default.
+Notice: See apt-secure(8) manpage for repository creation and user configuration details.
+Error: The repository 'http://mirrors.digitalocean.com/ubuntu oracular Release' no longer has a Release file.
+Notice: Updating from such a repository can't be done securely, and is therefore disabled by default.
+Notice: See apt-secure(8) manpage for repository creation and user configuration details.
+Error: The repository 'http://mirrors.digitalocean.com/ubuntu oracular-updates Release' no longer has a Release file.
+Notice: Updating from such a repository can't be done securely, and is therefore disabled by default.
+Notice: See apt-secure(8) manpage for repository creation and user configuration details.
+Error: The repository 'http://mirrors.digitalocean.com/ubuntu oracular-backports Release' no longer has a Release file.
+Notice: Updating from such a repository can't be done securely, and is therefore disabled by default.
+Notice: See apt-secure(8) manpage for repository creation and user configuration details.
+📦 Installing Node.js 20...
+✅ Node.js 20+ already installed: v20.19.4
+📦 Installing required system packages...
+postgresql is already the newest version (16+262).
+postgresql-contrib is already the newest version (16+262).
+nginx is already the newest version (1.26.0-2ubuntu3.3).
+git is already the newest version (1:2.45.2-1ubuntu1.2).
+curl is already the newest version (8.9.1-2ubuntu2.2).
+openssl is already the newest version (3.3.1-2ubuntu2.1).
+ufw is already the newest version (0.36.2-6).
+Summary:
+  Upgrading: 0, Installing: 0, Removing: 0, Not Upgrading: 1
+📦 Installing PM2 process manager...
+
+added 1 package, removed 3 packages, and changed 132 packages in 11s
+
+13 packages are looking for funding
+  run `npm fund` for details
+📁 Creating application directory...
+📋 Copying application files from current directory...
+cp: cannot create regular file '/var/www/zeroday-academy/./ecosystem.config.js': Permission denied
