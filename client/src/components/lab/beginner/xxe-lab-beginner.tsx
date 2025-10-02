@@ -10,7 +10,12 @@ export default function XxeLabBeginner() {
           <span className="cyber-gradient-text">XML External Entities (XXE)</span>
           <Badge className="ml-3 bg-[#00FECA]/20 text-[#00FECA] border-[#00FECA]/30">Beginner</Badge>
         </h2>
-        <p className="text-gray-400 mt-1">Basic XXE exploitation techniques</p>
+        <p className="text-gray-400 mt-2 text-sm leading-relaxed">
+          XXE attacks exploit vulnerable XML parsers to access local files, perform server-side request forgery, and exfiltrate
+          sensitive data. Practice crafting malicious XML documents with external entity references to read system files like
+          /etc/passwd, extract environment variables, and discover internal network resources. Learn to use Burp Suite to
+          intercept and modify XML payloads for successful exploitation.
+        </p>
       </div>
       
       <div className="p-6 space-y-6">

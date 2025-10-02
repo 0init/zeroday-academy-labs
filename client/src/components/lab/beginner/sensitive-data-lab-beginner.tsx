@@ -10,7 +10,12 @@ export default function SensitiveDataLabBeginner() {
           <span className="cyber-gradient-text">Sensitive Data Exposure</span>
           <Badge className="ml-3 bg-[#00FECA]/20 text-[#00FECA] border-[#00FECA]/30">Beginner</Badge>
         </h2>
-        <p className="text-gray-400 mt-1">Basic sensitive data exposure techniques</p>
+        <p className="text-gray-400 mt-2 text-sm leading-relaxed">
+          Sensitive Data Exposure occurs when applications fail to properly protect confidential information like passwords, credit card numbers,
+          and personal data. Learn to identify unencrypted data transmission, weak encryption algorithms, and exposed backup files containing
+          sensitive information. Practice intercepting network traffic with Burp Suite, analyzing client-side storage, and exploiting insecure
+          cryptographic implementations to extract credentials, financial data, and personally identifiable information.
+        </p>
       </div>
       
       <div className="p-6 space-y-6">

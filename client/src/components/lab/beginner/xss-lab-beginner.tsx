@@ -12,7 +12,12 @@ export default function XssLabBeginner() {
           <span className="cyber-gradient-text">Cross-Site Scripting (XSS)</span>
           <Badge className="ml-3 bg-[#00FECA]/20 text-[#00FECA] border-[#00FECA]/30">Beginner</Badge>
         </h2>
-        <p className="text-gray-400 mt-1">Basic XSS exploitation techniques</p>
+        <p className="text-gray-400 mt-2 text-sm leading-relaxed">
+          Cross-Site Scripting allows attackers to inject malicious JavaScript code into web pages viewed by other users.
+          Practice exploiting reflected, stored, and DOM-based XSS vulnerabilities to steal session cookies, hijack user accounts,
+          and manipulate page content. Learn to bypass input filters and use tools like Burp Suite to identify and exploit
+          XSS flaws in modern web applications.
+        </p>
       </div>
       
       <div className="p-6 space-y-6">

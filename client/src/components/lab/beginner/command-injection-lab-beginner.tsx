@@ -10,7 +10,12 @@ export default function CommandInjectionLabBeginner() {
           <span className="cyber-gradient-text">Command Injection</span>
           <Badge className="ml-3 bg-[#00FECA]/20 text-[#00FECA] border-[#00FECA]/30">Beginner</Badge>
         </h2>
-        <p className="text-gray-400 mt-1">Basic command injection exploitation</p>
+        <p className="text-gray-400 mt-2 text-sm leading-relaxed">
+          Command Injection vulnerabilities occur when applications pass unsanitized user input directly to system shell commands.
+          Learn to exploit command separators, pipes, and command substitution to execute arbitrary system commands on the server.
+          Master techniques to enumerate the file system, extract sensitive data, and establish reverse shells using tools like
+          Netcat and Burp Suite for complete server compromise.
+        </p>
       </div>
       
       <div className="p-6 space-y-6">

@@ -10,7 +10,12 @@ export default function AuthBypassLabBeginner() {
           <span className="cyber-gradient-text">Authentication Bypass</span>
           <Badge className="ml-3 bg-[#00FECA]/20 text-[#00FECA] border-[#00FECA]/30">Beginner</Badge>
         </h2>
-        <p className="text-gray-400 mt-1">Basic authentication bypass techniques</p>
+        <p className="text-gray-400 mt-2 text-sm leading-relaxed">
+          Authentication Bypass vulnerabilities allow attackers to circumvent login mechanisms and gain unauthorized access to protected resources.
+          Learn to exploit weak authentication logic, credential stuffing, default credentials, and broken session management. Practice using
+          Burp Suite to manipulate authentication requests, modify cookies, and exploit flawed password reset mechanisms to compromise user accounts
+          and gain administrative privileges without valid credentials.
+        </p>
       </div>
       
       <div className="p-6 space-y-6">

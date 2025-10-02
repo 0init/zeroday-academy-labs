@@ -10,7 +10,12 @@ export default function AccessControlLabBeginner() {
           <span className="cyber-gradient-text">Access Control</span>
           <Badge className="ml-3 bg-[#00FECA]/20 text-[#00FECA] border-[#00FECA]/30">Beginner</Badge>
         </h2>
-        <p className="text-gray-400 mt-1">Basic access control bypass techniques</p>
+        <p className="text-gray-400 mt-2 text-sm leading-relaxed">
+          Broken Access Control flaws enable attackers to access unauthorized data or functionality by manipulating user IDs, roles, and permissions.
+          Master IDOR (Insecure Direct Object Reference) attacks to access other users' sensitive information by changing URL parameters.
+          Learn horizontal and vertical privilege escalation techniques using Burp Suite to enumerate user accounts, access admin panels,
+          and exploit missing function-level access control to gain elevated privileges.
+        </p>
       </div>
       
       <div className="p-6 space-y-6">

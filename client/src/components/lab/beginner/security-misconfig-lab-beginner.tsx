@@ -10,7 +10,12 @@ export default function SecurityMisconfigLabBeginner() {
           <span className="cyber-gradient-text">Security Misconfiguration</span>
           <Badge className="ml-3 bg-[#00FECA]/20 text-[#00FECA] border-[#00FECA]/30">Beginner</Badge>
         </h2>
-        <p className="text-gray-400 mt-1">Basic security misconfiguration exploitation</p>
+        <p className="text-gray-400 mt-2 text-sm leading-relaxed">
+          Security Misconfigurations arise from insecure default settings, incomplete configurations, and unnecessary features left enabled.
+          Practice discovering exposed debug pages, directory listings, and verbose error messages that reveal system information. Learn to
+          identify misconfigured security headers, unpatched systems, and exposed administration interfaces using tools like Nikto and
+          Burp Suite to map attack surface and exploit configuration weaknesses for system compromise.
+        </p>
       </div>
       
       <div className="p-6 space-y-6">

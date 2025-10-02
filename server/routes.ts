@@ -641,11 +641,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     // Stored XSS implementation
     if (comment && username) {
       // Intentionally accept and store unvalidated input
+      const commentText = comment.toString();
+      const usernameText = username.toString();
+      
       storedComments.push({
-        author: username.toString(),
-        text: comment.toString(),
+        author: usernameText,
+        text: commentText,
         date: new Date().toISOString().split('T')[0]
       });
+      
+      // Check if XSS payload detected
+      const xssPatterns = ['<script', 'onerror', 'onload', 'javascript:', '<img', '<svg', 'onclick'];
+      const hasXssPayload = xssPatterns.some(pattern => 
+        commentText.toLowerCase().includes(pattern) || usernameText.toLowerCase().includes(pattern)
+      );
+      const flagComment = hasXssPayload ? '<!-- FLAG: {XSS_STORED_SUCCESSFUL} -->' : '';
       
       return res.send(`
         <!DOCTYPE html>
@@ -702,6 +712,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 <p>This page is vulnerable to both stored and reflected XSS. User input is directly rendered without sanitization.</p>
               </div>
             </div>
+            ${flagComment}
           </body>
         </html>
       `);
@@ -711,6 +722,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (search) {
       let results = [];
       const searchTerm = search.toString().toLowerCase();
+      
+      // Check if reflected XSS payload detected
+      const xssPatterns = ['<script', 'onerror', 'onload', 'javascript:', '<img', '<svg', 'onclick'];
+      const hasReflectedXss = xssPatterns.some(pattern => searchTerm.includes(pattern));
+      const reflectedFlag = hasReflectedXss ? '<!-- FLAG: {XSS_REFLECTED_SUCCESSFUL} -->' : '';
       
       if (searchTerm.length > 0) {
         const mockProducts = [
@@ -779,6 +795,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 <p>This page is vulnerable to DOM-based and reflected XSS attacks. User input is inserted into the page without proper sanitization.</p>
               </div>
             </div>
+            ${reflectedFlag}
             
             <script>
               // Intentionally vulnerable DOM manipulation
@@ -1825,7 +1842,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           attack_vector: 'External entity file access',
           accessed_file: fileAccessMatch[1],
           success: true,
-          message: 'XXE vulnerability successfully exploited! File contents accessed through external entity.'
+          message: 'XXE vulnerability successfully exploited! File contents accessed through external entity.',
+          flag: '{XXE_FILE_ACCESS_SUCCESSFUL}'
         },
         metadata: xxeMetadata
       });
@@ -2052,7 +2070,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           attack_vector: 'External entity file access',
           accessed_file: fileAccessMatch[1],
           success: true,
-          message: 'XXE vulnerability successfully exploited! File contents accessed through external entity.'
+          message: 'XXE vulnerability successfully exploited! File contents accessed through external entity.',
+          flag: '{XXE_FILE_ACCESS_SUCCESSFUL}'
         },
         metadata: xxeMetadata
       });
@@ -2353,6 +2372,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Add sensitive data to user profile and check for sensitive data exposure
+      const isAdminDataAccessed = parseInt(targetUserId.toString()) === 1;
       const responseData = {
         ...userData,
         sensitive_data: sensitiveData,
@@ -2369,7 +2389,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           authenticated_user_id: 10, // The actual authenticated user should be 10
           accessed_user_id: parseInt(targetUserId.toString()), // But can access any ID
           authorized: false, // Should be false except for accessing own data
-          message: 'This endpoint has an IDOR vulnerability - authenticated user (10) is accessing data for user ' + targetUserId
+          message: 'This endpoint has an IDOR vulnerability - authenticated user (10) is accessing data for user ' + targetUserId,
+          flag: isAdminDataAccessed ? '{IDOR_ADMIN_DATA_ACCESS}' : null
         }
       };
       
@@ -2809,7 +2830,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       response.command_injection = {
         detected: true,
         original_command: `ping -c 3 ${targetAddress.split(/[^\w.-]/)[0]}`,
-        warning: 'Command injection vulnerability exploited!'
+        warning: 'Command injection vulnerability exploited!',
+        flag: '{COMMAND_INJECTION_SUCCESSFUL}'
       };
     }
     
@@ -2908,7 +2930,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             { name: 'Admin', fields: [{ name: 'id' }, { name: 'privileges' }, { name: 'secret_key' }] },
             { name: 'Query', fields: [{ name: 'users' }, { name: 'admin' }, { name: 'sensitive_data' }] }
           ]
-        }
+        },
+        flag: '{GRAPHQL_INTROSPECTION_SCHEMA_LEAK}'
       };
     }
     // Check for injection patterns
@@ -3261,7 +3284,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             <h2>🎉 Login Successful!</h2>
             <p>Welcome to the MongoDB User Portal</p>
             ${userList}
-            ${results.length > 1 ? '<p style="color: red;">⚠️ Multiple users returned - possible NoSQL injection detected!</p>' : ''}
+            ${results.length > 1 ? '<p style="color: red;">⚠️ Multiple users returned - possible NoSQL injection detected!</p><!-- FLAG: {NOSQL_INJECTION_MULTIPLE_USERS} -->' : ''}
           </body>
         </html>
       `);
@@ -3449,6 +3472,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   <h3>✅ Access Granted - Welcome Administrator!</h3>
                   <p>You have successfully accessed the admin panel.</p>
                 </div>
+                <!-- FLAG: {JWT_ADMIN_PRIVILEGE_ESCALATION} -->
                 
                 <div class="secrets">
                   <h3>🔑 Sensitive Administrative Data:</h3>

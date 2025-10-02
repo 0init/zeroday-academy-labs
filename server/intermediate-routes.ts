@@ -193,7 +193,8 @@ export async function registerIntermediateRoutes(app: Express): Promise<Server> 
             DATABASE_URL: 'postgresql://localhost:5432/demo_app',
             DEBUG: true
           },
-          warning: 'SSTI detected - Configuration disclosure'
+          warning: 'SSTI detected - Configuration disclosure',
+          flag: '{SSTI_CONFIG_ACCESS}'
         });
       }
       
@@ -204,7 +205,8 @@ export async function registerIntermediateRoutes(app: Express): Promise<Server> 
           template: templateInput,
           result: 'Command executed successfully',
           command_output: 'www-data',
-          warning: 'SSTI detected - Remote Code Execution achieved!'
+          warning: 'SSTI detected - Remote Code Execution achieved!',
+          flag: '{SSTI_RCE_SUCCESSFUL}'
         });
       }
     }
@@ -257,7 +259,8 @@ export async function registerIntermediateRoutes(app: Express): Promise<Server> 
           { cn: 'user2', mail: 'user2@company.com', title: 'Manager' }
         ],
         injection_detected: true,
-        message: 'LDAP injection successful - Wildcard bypass'
+        message: 'LDAP injection successful - Wildcard bypass',
+        flag: '{LDAP_INJECTION_WILDCARD_BYPASS}'
       });
     }
 
@@ -292,7 +295,8 @@ export async function registerIntermediateRoutes(app: Express): Promise<Server> 
           role: 'administrator',
           api_keys: ['key_12345', 'key_67890']
         },
-        injection_type: 'NoSQL $ne operator bypass'
+        injection_type: 'NoSQL $ne operator bypass',
+        flag: '{NOSQL_AUTH_BYPASS}'
       });
     }
 
