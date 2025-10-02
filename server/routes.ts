@@ -422,6 +422,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Return the extracted data as plain text (realistic SQL injection response)
         const responseText = extractedData.join('\n');
         
+        // Check if sensitive data (credit cards or passwords) was extracted
+        const extractedSensitiveData = paramValue.toLowerCase().includes("credit_cards") || 
+                                       paramValue.toLowerCase().includes("password");
+        
         // For API consistency, also provide a structured format but focus on raw extraction
         return res.json({
           success: true,
@@ -431,6 +435,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           totalRecords: rawData.length,
           queryTime: `${Date.now() - startTime}ms`,
           injectionType: "UNION",
+          flag: extractedSensitiveData ? '{SQL_INJECTION_UNION_DATA_EXTRACTION}' : null,
           timestamp: new Date().toISOString()
         });
       }
@@ -470,6 +475,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           user: mockDatabase.users[0], // Return admin user
           message: "Authentication bypassed successfully",
           injectionType: "AUTH_BYPASS",
+          flag: '{SQL_INJECTION_AUTH_BYPASS}',
           queryTime: `${Date.now() - startTime}ms`,
           timestamp: new Date().toISOString()
         });

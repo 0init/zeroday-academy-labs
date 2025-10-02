@@ -15,7 +15,12 @@ export default function SqliLabBeginner() {
           <span className="cyber-gradient-text">SQL Injection</span>
           <Badge className="ml-3 bg-[#00FECA]/20 text-[#00FECA] border-[#00FECA]/30">Beginner</Badge>
         </h2>
-        <p className="text-gray-400 mt-1">Basic SQL injection exploitation</p>
+        <p className="text-gray-400 mt-2 text-sm leading-relaxed">
+          SQL Injection allows attackers to manipulate database queries by injecting malicious SQL code through user input fields. 
+          Learn to exploit error-based, union-based, and blind SQL injection techniques to extract sensitive data, bypass authentication, 
+          and gain unauthorized access to database contents. Master the use of tools like SQLMap and Burp Suite to identify and exploit 
+          vulnerable parameters in web applications.
+        </p>
       </div>
       
       <div className="p-6 space-y-6">
