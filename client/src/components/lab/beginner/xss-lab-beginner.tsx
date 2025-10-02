@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Play, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -20,7 +21,7 @@ export default function XssLabBeginner() {
             className="cyber-button h-14"
             onClick={() => window.open('/api/vuln/xss', '_blank')}
           >
-            <span className="material-icons mr-2">play_arrow</span>
+            <Play className="mr-2" size={20} />
             Start Task
           </Button>
           
@@ -29,7 +30,7 @@ export default function XssLabBeginner() {
             className="border-[#00FECA]/30 text-[#00FECA] hover:bg-[#00FECA]/10 h-14"
             onClick={() => window.open('/api/vuln/xss', '_blank')}
           >
-            <span className="material-icons mr-2">open_in_new</span>
+            <ExternalLink className="mr-2" size={20} />
             Open Lab
           </Button>
         </div>
