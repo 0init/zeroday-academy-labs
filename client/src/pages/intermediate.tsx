@@ -1,5 +1,5 @@
 import { Badge } from '@/components/ui/badge';
-import MainLayout from '@/components/layout/main-layout';
+import MainLayoutIntermediate from '@/components/layout/main-layout-intermediate';
 
 // Import advanced intermediate lab components (completely different from beginner)
 import ServerSideTemplateInjectionLab from '@/components/lab/intermediate/server-side-template-injection-lab';
@@ -14,7 +14,7 @@ import HttpHostHeaderInjectionLab from '@/components/lab/intermediate/http-host-
 
 export default function IntermediatePage() {
   return (
-    <MainLayout>
+    <MainLayoutIntermediate>
       <div className="min-h-screen bg-gradient-to-br from-[#0A0A14] via-[#0D0D14] to-[#0A0A14] py-8 md:py-12">
         <div className="max-w-6xl mx-auto px-4 md:px-6">
           <div className="text-center mb-8 md:mb-12">
@@ -40,6 +40,6 @@ export default function IntermediatePage() {
           </div>
         </div>
       </div>
-    </MainLayout>
+    </MainLayoutIntermediate>
   );
 }
