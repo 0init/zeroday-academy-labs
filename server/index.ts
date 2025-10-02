@@ -1,5 +1,4 @@
 import express, { type Request, Response, NextFunction } from "express";
-import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 
 const app = express();
@@ -41,7 +40,18 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  const server = await registerRoutes(app);
+  // Environment-driven route loading: LAB_LEVEL=intermediate for intermediate labs
+  const labLevel = process.env.LAB_LEVEL || 'beginner';
+  log(`Loading ${labLevel} labs...`);
+  
+  let server;
+  if (labLevel === 'intermediate') {
+    const { registerIntermediateRoutes } = await import("./intermediate-routes");
+    server = await registerIntermediateRoutes(app);
+  } else {
+    const { registerRoutes } = await import("./routes");
+    server = await registerRoutes(app);
+  }
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;

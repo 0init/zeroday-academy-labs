@@ -1,5 +1,6 @@
 import express, { type Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
+import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
 import { z } from "zod";
 import { insertUserProgressSchema } from "@shared/schema";
@@ -355,21 +356,999 @@ export async function registerIntermediateRoutes(app: Express): Promise<Server> 
     return res.json({ success: false, error: 'Token processing failed' });
   });
 
-  // 5-9. Other intermediate labs (simplified for now)
+  // 5. Advanced CSRF Lab
   apiRouter.get('/vuln/csrf-advanced', (req: Request, res: Response) => {
     return res.send('<h1>Advanced CSRF Lab - Intermediate (Coming Soon)</h1>');
   });
 
+  // 6. WebSocket Message Manipulation (Intermediate)
   apiRouter.get('/vuln/websocket-manipulation', (req: Request, res: Response) => {
-    return res.send('<h1>WebSocket Manipulation Lab - Intermediate (Coming Soon)</h1>');
+    return res.send(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>WebSocket Chat - Message Manipulation Lab</title>
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            color: #e2e8f0;
+            padding: 20px;
+            min-height: 100vh;
+          }
+          .container { max-width: 1200px; margin: 0 auto; }
+          h1 { color: #a78bfa; margin-bottom: 10px; font-size: 28px; }
+          .subtitle { color: #94a3b8; margin-bottom: 30px; font-size: 14px; }
+          .info-box {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+          }
+          .info-box h3 { color: #a78bfa; margin-bottom: 15px; font-size: 18px; }
+          .info-box ul { margin-left: 20px; line-height: 1.8; color: #cbd5e1; }
+          .info-box code { 
+            background: #0f172a; 
+            padding: 2px 8px; 
+            border-radius: 4px; 
+            color: #fbbf24;
+            font-family: 'Courier New', monospace;
+          }
+          .chat-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-top: 20px;
+          }
+          .chat-box {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 20px;
+            height: 500px;
+            display: flex;
+            flex-direction: column;
+          }
+          .chat-box h3 { 
+            color: #a78bfa; 
+            margin-bottom: 15px; 
+            padding-bottom: 10px; 
+            border-bottom: 1px solid #334155;
+          }
+          #messages {
+            flex: 1;
+            overflow-y: auto;
+            margin-bottom: 15px;
+            padding: 10px;
+            background: #0f172a;
+            border-radius: 6px;
+            border: 1px solid #1e293b;
+          }
+          .message {
+            margin-bottom: 12px;
+            padding: 10px;
+            background: #1e293b;
+            border-radius: 6px;
+            border-left: 3px solid #3b82f6;
+          }
+          .message.admin {
+            border-left-color: #ef4444;
+            background: #1e1b2e;
+          }
+          .message .username {
+            font-weight: bold;
+            color: #60a5fa;
+            margin-bottom: 5px;
+          }
+          .message.admin .username { color: #ef4444; }
+          .message .text { color: #cbd5e1; }
+          .message .time { 
+            font-size: 11px; 
+            color: #64748b; 
+            margin-top: 5px;
+          }
+          .input-group {
+            display: flex;
+            gap: 10px;
+          }
+          input, textarea {
+            flex: 1;
+            padding: 12px;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 6px;
+            color: #e2e8f0;
+            font-family: inherit;
+          }
+          input::placeholder, textarea::placeholder { color: #64748b; }
+          button {
+            padding: 12px 24px;
+            background: #a78bfa;
+            color: #000;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background 0.2s;
+          }
+          button:hover { background: #8b5cf6; }
+          button:disabled {
+            background: #334155;
+            cursor: not-allowed;
+          }
+          .status {
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            margin-bottom: 15px;
+            text-align: center;
+          }
+          .status.connected {
+            background: #064e3b;
+            border: 1px solid #10b981;
+            color: #10b981;
+          }
+          .status.disconnected {
+            background: #450a0a;
+            border: 1px solid #ef4444;
+            color: #ef4444;
+          }
+          .json-box {
+            background: #0f172a;
+            padding: 15px;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            overflow-x: auto;
+            border: 1px solid #1e293b;
+          }
+          .success { color: #10b981; }
+          .error { color: #ef4444; }
+          .warning { color: #fbbf24; }
+          
+          @media (max-width: 768px) {
+            .chat-container { grid-template-columns: 1fr; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <h1>🔌 WebSocket Message Manipulation Lab</h1>
+          <p class="subtitle">Intermediate Level - Real-time Communication Exploitation</p>
+          
+          <div class="info-box">
+            <h3>🎯 Lab Objectives</h3>
+            <ul>
+              <li>Intercept and manipulate WebSocket messages in real-time</li>
+              <li>Exploit weak authentication in WebSocket connections</li>
+              <li>Perform privilege escalation via message tampering</li>
+              <li>Inject malicious payloads through WebSocket frames</li>
+              <li>Bypass client-side validation in real-time applications</li>
+            </ul>
+          </div>
+
+          <div class="info-box">
+            <h3>🔧 Exploitation Techniques</h3>
+            <ul>
+              <li><strong>Burp Suite:</strong> Use WebSocket History and Repeater to intercept messages</li>
+              <li><strong>Browser DevTools:</strong> Inspect WebSocket frames in the Network tab</li>
+              <li><strong>Message Tampering:</strong> Modify <code>username</code>, <code>role</code>, or <code>type</code> fields</li>
+              <li><strong>Admin Impersonation:</strong> Change your role to <code>"admin"</code> in outgoing messages</li>
+              <li><strong>Command Injection:</strong> Try sending <code>type: "admin_command"</code> messages</li>
+            </ul>
+          </div>
+
+          <div class="chat-container">
+            <div class="chat-box">
+              <h3>💬 Normal Chat Interface</h3>
+              <div id="status" class="status disconnected">Disconnected</div>
+              <div id="messages"></div>
+              <div class="input-group">
+                <input type="text" id="username" placeholder="Username" value="guest123">
+                <input type="text" id="messageInput" placeholder="Type a message...">
+                <button onclick="sendMessage()">Send</button>
+              </div>
+            </div>
+
+            <div class="chat-box">
+              <h3>🔍 WebSocket Inspector</h3>
+              <div style="flex: 1; overflow-y: auto;">
+                <p style="color: #94a3b8; margin-bottom: 15px;">
+                  <strong>Challenge:</strong> The server accepts messages with a <code>role</code> field.
+                  Try to send a message with <code>"role": "admin"</code> to unlock admin features!
+                </p>
+                <h4 style="color: #a78bfa; margin-top: 20px; margin-bottom: 10px;">Last Message Sent:</h4>
+                <div id="lastSent" class="json-box">No messages sent yet</div>
+                <h4 style="color: #a78bfa; margin-top: 20px; margin-bottom: 10px;">Last Message Received:</h4>
+                <div id="lastReceived" class="json-box">No messages received yet</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="info-box" style="margin-top: 20px;">
+            <h3>💡 Hints for Exploitation</h3>
+            <ul>
+              <li>Open <strong>Burp Suite</strong> and configure your browser to proxy WebSocket traffic</li>
+              <li>Look at the WebSocket messages in Burp's WebSocket History tab</li>
+              <li>Try modifying the JSON payload before it reaches the server</li>
+              <li>Add a <code>"role": "admin"</code> field to your message object</li>
+              <li>Send a message with <code>"type": "admin_command"</code> to test for command execution</li>
+              <li>The server trusts client-sent role information (classic vulnerability!)</li>
+            </ul>
+          </div>
+        </div>
+
+        <script>
+          let ws = null;
+          const messagesDiv = document.getElementById('messages');
+          const statusDiv = document.getElementById('status');
+          const lastSentDiv = document.getElementById('lastSent');
+          const lastReceivedDiv = document.getElementById('lastReceived');
+
+          function connect() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const host = window.location.host;
+            ws = new WebSocket(protocol + '//' + host + '/ws-chat');
+
+            ws.onopen = () => {
+              statusDiv.textContent = 'Connected';
+              statusDiv.className = 'status connected';
+              addMessage('System', 'Connected to WebSocket server', 'system');
+            };
+
+            ws.onclose = () => {
+              statusDiv.textContent = 'Disconnected';
+              statusDiv.className = 'status disconnected';
+              addMessage('System', 'Disconnected from server', 'system');
+              setTimeout(connect, 3000);
+            };
+
+            ws.onerror = () => {
+              statusDiv.textContent = 'Connection Error';
+              statusDiv.className = 'status disconnected';
+            };
+
+            ws.onmessage = (event) => {
+              try {
+                const data = JSON.parse(event.data);
+                lastReceivedDiv.textContent = JSON.stringify(data, null, 2);
+                
+                if (data.type === 'chat') {
+                  addMessage(data.username, data.message, data.role || 'user');
+                } else if (data.type === 'admin_response') {
+                  addMessage('SYSTEM', data.message, 'admin', data.flag);
+                } else if (data.type === 'error') {
+                  addMessage('Error', data.message, 'system');
+                }
+              } catch (e) {
+                console.error('Failed to parse message:', e);
+              }
+            };
+          }
+
+          function sendMessage() {
+            const username = document.getElementById('username').value || 'guest';
+            const message = document.getElementById('messageInput').value;
+            
+            if (!message) return;
+
+            const payload = {
+              type: 'chat',
+              username: username,
+              message: message,
+              timestamp: new Date().toISOString()
+            };
+
+            lastSentDiv.textContent = JSON.stringify(payload, null, 2);
+            
+            if (ws && ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify(payload));
+              document.getElementById('messageInput').value = '';
+            }
+          }
+
+          function addMessage(username, text, role = 'user', flag = null) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message' + (role === 'admin' ? ' admin' : '');
+            
+            let flagHtml = '';
+            if (flag) {
+              flagHtml = '<div class="success" style="margin-top: 10px; padding: 10px; background: #064e3b; border-radius: 4px; font-weight: bold;">🎉 FLAG: ' + flag + '</div>';
+            }
+            
+            messageDiv.innerHTML = 
+              '<div class="username">' + username + (role === 'admin' ? ' [ADMIN]' : '') + '</div>' +
+              '<div class="text">' + text + '</div>' +
+              flagHtml +
+              '<div class="time">' + new Date().toLocaleTimeString() + '</div>';
+            
+            messagesDiv.appendChild(messageDiv);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+          }
+
+          document.getElementById('messageInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
+          });
+
+          connect();
+        </script>
+      </body>
+      </html>
+    `);
   });
 
+  // 7. Race Condition Exploitation (Intermediate)
   apiRouter.get('/vuln/race-condition', (req: Request, res: Response) => {
-    return res.send('<h1>Race Condition Lab - Intermediate (Coming Soon)</h1>');
+    return res.send(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Race Condition Exploitation Lab</title>
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            color: #e2e8f0;
+            padding: 20px;
+            min-height: 100vh;
+          }
+          .container { max-width: 1200px; margin: 0 auto; }
+          h1 { color: #f59e0b; margin-bottom: 10px; font-size: 28px; }
+          .subtitle { color: #94a3b8; margin-bottom: 30px; font-size: 14px; }
+          .info-box {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+          }
+          .info-box h3 { color: #f59e0b; margin-bottom: 15px; font-size: 18px; }
+          .info-box ul { margin-left: 20px; line-height: 1.8; color: #cbd5e1; }
+          .info-box code { 
+            background: #0f172a; 
+            padding: 2px 8px; 
+            border-radius: 4px; 
+            color: #fbbf24;
+            font-family: 'Courier New', monospace;
+          }
+          .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+          }
+          .card {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 25px;
+          }
+          .card h3 { 
+            color: #f59e0b; 
+            margin-bottom: 20px; 
+            padding-bottom: 15px; 
+            border-bottom: 1px solid #334155;
+          }
+          .balance {
+            font-size: 36px;
+            font-weight: bold;
+            color: #10b981;
+            margin: 20px 0;
+          }
+          .discount-code {
+            background: #0f172a;
+            padding: 15px;
+            border-radius: 6px;
+            border: 1px solid #334155;
+            margin: 15px 0;
+          }
+          .discount-code strong { color: #fbbf24; }
+          .discount-code .code {
+            font-family: 'Courier New', monospace;
+            font-size: 20px;
+            color: #10b981;
+            margin: 10px 0;
+          }
+          .input-group {
+            margin: 15px 0;
+          }
+          .input-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #94a3b8;
+            font-size: 14px;
+          }
+          input, select {
+            width: 100%;
+            padding: 12px;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 6px;
+            color: #e2e8f0;
+            font-family: inherit;
+          }
+          button {
+            width: 100%;
+            padding: 14px;
+            background: #f59e0b;
+            color: #000;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 15px;
+            margin-top: 10px;
+            transition: background 0.2s;
+          }
+          button:hover { background: #d97706; }
+          button.success { background: #10b981; }
+          button.danger { background: #ef4444; }
+          #results {
+            margin-top: 20px;
+            padding: 15px;
+            background: #0f172a;
+            border-radius: 6px;
+            border: 1px solid #334155;
+            min-height: 100px;
+            max-height: 400px;
+            overflow-y: auto;
+          }
+          .result-item {
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            border-left: 3px solid #3b82f6;
+          }
+          .result-item.success {
+            background: #064e3b;
+            border-left-color: #10b981;
+            color: #10b981;
+          }
+          .result-item.error {
+            background: #450a0a;
+            border-left-color: #ef4444;
+            color: #ef4444;
+          }
+          .exploit-section {
+            background: #1e293b;
+            border: 2px solid #f59e0b;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+          }
+          .exploit-section h3 { 
+            color: #f59e0b; 
+            margin-bottom: 15px;
+          }
+          .warning {
+            background: #422006;
+            border: 1px solid #f59e0b;
+            color: #fbbf24;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            font-size: 14px;
+          }
+          
+          @media (max-width: 768px) {
+            .grid { grid-template-columns: 1fr; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <h1>⏱️ Race Condition Exploitation Lab</h1>
+          <p class="subtitle">Intermediate Level - Concurrent Request Exploitation</p>
+          
+          <div class="info-box">
+            <h3>🎯 Lab Objectives</h3>
+            <ul>
+              <li>Exploit timing vulnerabilities in transaction processing</li>
+              <li>Bypass single-use restrictions through concurrent requests</li>
+              <li>Manipulate account balances via race conditions</li>
+              <li>Exploit insufficient locking mechanisms in database operations</li>
+              <li>Understand TOCTOU (Time-of-Check to Time-of-Use) vulnerabilities</li>
+            </ul>
+          </div>
+
+          <div class="grid">
+            <div class="card">
+              <h3>💰 Your Account</h3>
+              <div>Current Balance:</div>
+              <div class="balance">$<span id="balance">100.00</span></div>
+              <div class="discount-code">
+                <strong>🎫 Single-Use Discount Code:</strong>
+                <div class="code">SAVE50</div>
+                <div style="color: #64748b; font-size: 13px; margin-top: 5px;">
+                  Adds $50 to your balance. Can only be used once... or can it? 😏
+                </div>
+              </div>
+            </div>
+
+            <div class="card">
+              <h3>🛒 Make Purchase</h3>
+              <div class="input-group">
+                <label>Product:</label>
+                <select id="product">
+                  <option value="10">Basic Item - $10</option>
+                  <option value="25">Premium Item - $25</option>
+                  <option value="50">Luxury Item - $50</option>
+                  <option value="100">Exclusive Item - $100</option>
+                </select>
+              </div>
+              <div class="input-group">
+                <label>Apply Discount Code:</label>
+                <input type="text" id="discountCode" placeholder="Enter code">
+              </div>
+              <button onclick="purchaseItem()">Purchase Item</button>
+              <button class="success" onclick="refreshBalance()">Refresh Balance</button>
+            </div>
+          </div>
+
+          <div class="exploit-section">
+            <h3>🔥 Race Condition Exploit</h3>
+            <div class="warning">
+              <strong>⚠️ Challenge:</strong> The discount code "SAVE50" should only work once, but the validation has a race condition.
+              Send multiple requests simultaneously to exploit it!
+            </div>
+            <div class="input-group">
+              <label>Number of Concurrent Requests:</label>
+              <input type="number" id="concurrentRequests" value="10" min="1" max="50">
+            </div>
+            <button class="danger" onclick="exploitRaceCondition()">🚀 Send Concurrent Requests</button>
+            <div id="results"></div>
+          </div>
+
+          <div class="info-box">
+            <h3>💡 Exploitation Techniques</h3>
+            <ul>
+              <li><strong>Burp Suite Intruder:</strong> Send multiple requests with "Pitchfork" attack type</li>
+              <li><strong>Turbo Intruder:</strong> Use for high-speed concurrent requests</li>
+              <li><strong>Python Script:</strong> Use <code>asyncio</code> or <code>threading</code> for parallel requests</li>
+              <li><strong>This Lab:</strong> Click "Send Concurrent Requests" to simulate the attack</li>
+              <li><strong>Goal:</strong> Use the single-use discount code multiple times to get more than $50</li>
+              <li><strong>Observe:</strong> All requests start before any validation completes (race window)</li>
+            </ul>
+          </div>
+
+          <div class="info-box">
+            <h3>🔧 How to Exploit with Burp Suite</h3>
+            <ul>
+              <li>1. Intercept a discount code redemption request in Burp Proxy</li>
+              <li>2. Send it to Intruder (Ctrl+I)</li>
+              <li>3. Clear all payload positions</li>
+              <li>4. Set attack type to "Sniper"</li>
+              <li>5. Set thread count to 10-20 in Resource Pool settings</li>
+              <li>6. Add 10-20 identical payloads (same discount code)</li>
+              <li>7. Click "Start Attack" and observe multiple successful redemptions</li>
+              <li>8. The flag appears when you successfully exploit the race condition!</li>
+            </ul>
+          </div>
+        </div>
+
+        <script>
+          let currentBalance = 100;
+
+          async function purchaseItem() {
+            const product = document.getElementById('product').value;
+            const discountCode = document.getElementById('discountCode').value;
+
+            try {
+              const response = await fetch('/api/vuln/race-condition/purchase', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                  amount: parseInt(product),
+                  discountCode: discountCode || null
+                })
+              });
+
+              const data = await response.json();
+              
+              if (data.success) {
+                currentBalance = data.balance;
+                updateBalance();
+                addResult('success', data.message + (data.flag ? ' 🎉 FLAG: ' + data.flag : ''));
+              } else {
+                addResult('error', data.error);
+              }
+            } catch (e) {
+              addResult('error', 'Request failed: ' + e.message);
+            }
+          }
+
+          async function refreshBalance() {
+            try {
+              const response = await fetch('/api/vuln/race-condition/balance');
+              const data = await response.json();
+              currentBalance = data.balance;
+              updateBalance();
+              addResult('success', 'Balance refreshed: $' + data.balance);
+            } catch (e) {
+              addResult('error', 'Failed to refresh balance');
+            }
+          }
+
+          async function exploitRaceCondition() {
+            const count = parseInt(document.getElementById('concurrentRequests').value);
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '<div style="color: #fbbf24; margin-bottom: 10px;">🚀 Sending ' + count + ' concurrent requests...</div>';
+
+            const requests = [];
+            for (let i = 0; i < count; i++) {
+              requests.push(
+                fetch('/api/vuln/race-condition/purchase', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ 
+                    amount: 0,
+                    discountCode: 'SAVE50'
+                  })
+                }).then(r => r.json())
+              );
+            }
+
+            const results = await Promise.all(requests);
+            
+            let successCount = 0;
+            results.forEach((data, i) => {
+              if (data.success) {
+                successCount++;
+                addResult('success', 'Request ' + (i + 1) + ': ' + data.message);
+              } else {
+                addResult('error', 'Request ' + (i + 1) + ': ' + data.error);
+              }
+            });
+
+            addResult('success', '✅ Exploitation complete! ' + successCount + ' requests succeeded!');
+            
+            if (successCount > 1) {
+              addResult('success', '🎉 FLAG: {RACE_CONDITION_EXPLOITED_MULTIPLE_USES}');
+            }
+
+            refreshBalance();
+          }
+
+          function updateBalance() {
+            document.getElementById('balance').textContent = currentBalance.toFixed(2);
+          }
+
+          function addResult(type, message) {
+            const resultsDiv = document.getElementById('results');
+            const item = document.createElement('div');
+            item.className = 'result-item ' + type;
+            item.textContent = message;
+            resultsDiv.insertBefore(item, resultsDiv.firstChild);
+          }
+        </script>
+      </body>
+      </html>
+    `);
   });
 
+  // Race Condition API endpoints
+  let userBalance = 100;
+  const usedDiscountCodes = new Set();
+
+  apiRouter.post('/vuln/race-condition/purchase', express.json(), async (req: Request, res: Response) => {
+    const { amount, discountCode } = req.body;
+
+    try {
+      // Vulnerable race condition: check-then-use pattern
+      if (discountCode === 'SAVE50') {
+        // RACE CONDITION WINDOW: Multiple requests can pass this check simultaneously
+        if (usedDiscountCodes.has(discountCode)) {
+          return res.json({ success: false, error: 'Discount code already used' });
+        }
+
+        // Simulated delay to widen the race window (database query simulation)
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        // TOCTOU vulnerability: Time elapsed between check and use
+        userBalance += 50;
+        usedDiscountCodes.add(discountCode);
+
+        const flag = userBalance > 150 ? '{RACE_CONDITION_EXPLOITED_MULTIPLE_USES}' : null;
+
+        return res.json({ 
+          success: true, 
+          message: 'Discount applied! +$50',
+          balance: userBalance,
+          flag
+        });
+      }
+
+      if (amount > userBalance) {
+        return res.json({ success: false, error: 'Insufficient balance' });
+      }
+
+      userBalance -= amount;
+      return res.json({ 
+        success: true, 
+        message: 'Purchase successful! -$' + amount,
+        balance: userBalance 
+      });
+
+    } catch (error) {
+      return res.json({ success: false, error: 'Transaction failed' });
+    }
+  });
+
+  apiRouter.get('/vuln/race-condition/balance', (req: Request, res: Response) => {
+    return res.json({ balance: userBalance });
+  });
+
+  // 8. HTTP Host Header Injection (Intermediate)
   apiRouter.get('/vuln/host-header-injection', (req: Request, res: Response) => {
-    return res.send('<h1>Host Header Injection Lab - Intermediate (Coming Soon)</h1>');
+    const host = req.get('host') || 'localhost';
+    const protocol = req.protocol;
+
+    return res.send(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Password Reset - Host Header Injection Lab</title>
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            color: #e2e8f0;
+            padding: 20px;
+            min-height: 100vh;
+          }
+          .container { max-width: 1200px; margin: 0 auto; }
+          h1 { color: #06b6d4; margin-bottom: 10px; font-size: 28px; }
+          .subtitle { color: #94a3b8; margin-bottom: 30px; font-size: 14px; }
+          .info-box {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+          }
+          .info-box h3 { color: #06b6d4; margin-bottom: 15px; font-size: 18px; }
+          .info-box ul { margin-left: 20px; line-height: 1.8; color: #cbd5e1; }
+          .info-box code { 
+            background: #0f172a; 
+            padding: 2px 8px; 
+            border-radius: 4px; 
+            color: #fbbf24;
+            font-family: 'Courier New', monospace;
+          }
+          .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+          }
+          .card {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 25px;
+          }
+          .card h3 { 
+            color: #06b6d4; 
+            margin-bottom: 20px; 
+            padding-bottom: 15px; 
+            border-bottom: 1px solid #334155;
+          }
+          .input-group {
+            margin: 15px 0;
+          }
+          .input-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #94a3b8;
+            font-size: 14px;
+          }
+          input {
+            width: 100%;
+            padding: 12px;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 6px;
+            color: #e2e8f0;
+            font-family: inherit;
+            font-size: 14px;
+          }
+          button {
+            width: 100%;
+            padding: 14px;
+            background: #06b6d4;
+            color: #000;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 15px;
+            margin-top: 15px;
+            transition: background 0.2s;
+          }
+          button:hover { background: #0891b2; }
+          .current-host {
+            background: #0f172a;
+            padding: 15px;
+            border-radius: 6px;
+            border: 1px solid #334155;
+            margin: 15px 0;
+          }
+          .current-host strong { color: #06b6d4; }
+          .current-host .value {
+            font-family: 'Courier New', monospace;
+            color: #fbbf24;
+            font-size: 16px;
+            margin-top: 5px;
+          }
+          #resetResult {
+            margin-top: 20px;
+            padding: 15px;
+            background: #0f172a;
+            border-radius: 6px;
+            border: 1px solid #334155;
+            display: none;
+          }
+          .success { color: #10b981; }
+          .warning { color: #fbbf24; }
+          .error { color: #ef4444; }
+          .exploit-hint {
+            background: #422006;
+            border: 1px solid #f59e0b;
+            color: #fbbf24;
+            padding: 15px;
+            border-radius: 6px;
+            margin-top: 15px;
+            font-size: 14px;
+          }
+          
+          @media (max-width: 768px) {
+            .grid { grid-template-columns: 1fr; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <h1>🌐 HTTP Host Header Injection Lab</h1>
+          <p class="subtitle">Intermediate Level - Password Reset Poisoning</p>
+          
+          <div class="info-box">
+            <h3>🎯 Lab Objectives</h3>
+            <ul>
+              <li>Exploit Host header manipulation to poison password reset links</li>
+              <li>Perform cache poisoning attacks via Host header injection</li>
+              <li>Bypass virtual host routing restrictions</li>
+              <li>Redirect users to attacker-controlled domains</li>
+              <li>Understand how applications trust the Host header</li>
+            </ul>
+          </div>
+
+          <div class="current-host">
+            <strong>Current Host Header:</strong>
+            <div class="value">${host}</div>
+          </div>
+
+          <div class="grid">
+            <div class="card">
+              <h3>🔑 Password Reset</h3>
+              <form onsubmit="requestReset(event)">
+                <div class="input-group">
+                  <label>Email Address:</label>
+                  <input type="email" id="email" placeholder="admin@company.com" value="victim@company.com" required>
+                </div>
+                <button type="submit">Request Password Reset</button>
+              </form>
+              <div class="exploit-hint">
+                <strong>💡 Hint:</strong> The reset link uses the Host header to build the URL.
+                Use Burp Suite to modify the Host header to <code>attacker.com</code>
+              </div>
+            </div>
+
+            <div class="card">
+              <h3>📧 Email Preview</h3>
+              <div id="resetResult"></div>
+              <div class="info-box" style="margin-top: 15px; background: #0f172a;">
+                <strong style="color: #06b6d4;">How to Exploit:</strong>
+                <ol style="margin-left: 20px; margin-top: 10px; line-height: 1.8; color: #cbd5e1;">
+                  <li>Intercept the password reset request in Burp Suite</li>
+                  <li>Modify the Host header to: <code>evil.com</code></li>
+                  <li>The reset link will point to your domain!</li>
+                  <li>When the victim clicks it, you capture their token</li>
+                </ol>
+              </div>
+            </div>
+          </div>
+
+          <div class="info-box">
+            <h3>💡 Exploitation Techniques</h3>
+            <ul>
+              <li><strong>Burp Suite:</strong> Intercept and modify the <code>Host</code> header</li>
+              <li><strong>Password Reset Poisoning:</strong> Change Host to <code>attacker.com</code></li>
+              <li><strong>Cache Poisoning:</strong> Inject Host header to poison cached responses</li>
+              <li><strong>X-Forwarded-Host:</strong> Try alternative headers like <code>X-Forwarded-Host</code></li>
+              <li><strong>Port Manipulation:</strong> Add arbitrary ports: <code>Host: localhost:8080</code></li>
+              <li><strong>Domain Injection:</strong> Try <code>Host: evil.com</code> or <code>Host: localhost@evil.com</code></li>
+            </ul>
+          </div>
+
+          <div class="info-box">
+            <h3>🔧 Burp Suite Attack Steps</h3>
+            <ul>
+              <li>1. Fill in the email field and click "Request Password Reset"</li>
+              <li>2. Intercept the request in Burp Proxy</li>
+              <li>3. Modify the <code>Host</code> header to <code>attacker.com</code></li>
+              <li>4. Forward the request</li>
+              <li>5. Observe the generated reset link points to <code>attacker.com</code></li>
+              <li>6. The server will show a flag when you successfully poison the Host header</li>
+            </ul>
+          </div>
+        </div>
+
+        <script>
+          async function requestReset(event) {
+            event.preventDefault();
+            const email = document.getElementById('email').value;
+            const resultDiv = document.getElementById('resetResult');
+
+            try {
+              const response = await fetch('/api/vuln/host-header-injection/reset', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email })
+              });
+
+              const data = await response.json();
+              
+              resultDiv.style.display = 'block';
+              resultDiv.innerHTML = 
+                '<div style="margin-bottom: 15px;"><strong class="success">✅ Password reset email sent!</strong></div>' +
+                '<div style="background: #1e293b; padding: 15px; border-radius: 6px; border: 1px solid #334155;">' +
+                '<div style="color: #94a3b8; margin-bottom: 10px;">Email Content:</div>' +
+                '<div style="color: #cbd5e1; line-height: 1.6;">' +
+                'To: <span style="color: #06b6d4;">' + email + '</span><br>' +
+                'Subject: Password Reset Request<br><br>' +
+                'Click the link below to reset your password:<br>' +
+                '<a href="' + data.resetLink + '" style="color: #fbbf24; word-break: break-all;">' + data.resetLink + '</a><br><br>' +
+                '<span style="color: #64748b; font-size: 13px;">Token: ' + data.token + '</span>' +
+                '</div>' +
+                (data.flag ? '<div class="success" style="margin-top: 15px; padding: 10px; background: #064e3b; border-radius: 4px; font-weight: bold;">🎉 FLAG: ' + data.flag + '</div>' : '') +
+                '</div>';
+
+            } catch (e) {
+              resultDiv.style.display = 'block';
+              resultDiv.innerHTML = '<div class="error">Request failed: ' + e.message + '</div>';
+            }
+          }
+        </script>
+      </body>
+      </html>
+    `);
+  });
+
+  apiRouter.post('/vuln/host-header-injection/reset', express.json(), (req: Request, res: Response) => {
+    const { email } = req.body;
+    const host = req.get('host') || 'localhost';
+    const protocol = req.protocol;
+    
+    // Generate password reset token
+    const token = Math.random().toString(36).substring(2, 15);
+    
+    // Vulnerable: Using Host header directly in reset link
+    const resetLink = `${protocol}://${host}/reset-password?token=${token}&email=${email}`;
+    
+    // Flag appears when attacker successfully poisons the host
+    const isExploited = !host.includes('localhost') && !host.includes('127.0.0.1') && !host.includes('replit');
+    const flag = isExploited ? '{HOST_HEADER_INJECTION_PASSWORD_RESET_POISONED}' : null;
+
+    return res.json({
+      success: true,
+      resetLink,
+      token,
+      flag,
+      message: 'Password reset link generated'
+    });
   });
 
   apiRouter.get('/vuln/graphql-injection', (req: Request, res: Response) => {
@@ -413,5 +1392,59 @@ export async function registerIntermediateRoutes(app: Express): Promise<Server> 
 
   // Create HTTP server
   const httpServer = createServer(app);
+  
+  // WebSocket server for message manipulation lab
+  const wss = new WebSocketServer({ 
+    server: httpServer,
+    path: '/ws-chat'
+  });
+
+  wss.on('connection', (ws: WebSocket) => {
+    console.log('WebSocket client connected');
+
+    ws.on('message', (data: Buffer) => {
+      try {
+        const message = JSON.parse(data.toString());
+        
+        // Vulnerable: Server trusts client-sent role information
+        if (message.role === 'admin') {
+          // Admin privilege escalation successful!
+          ws.send(JSON.stringify({
+            type: 'admin_response',
+            message: 'Admin command executed! You successfully escalated privileges via WebSocket message tampering.',
+            flag: '{WEBSOCKET_ADMIN_PRIVILEGE_ESCALATION}',
+            timestamp: new Date().toISOString()
+          }));
+        } else if (message.type === 'admin_command') {
+          // Another admin exploitation path
+          ws.send(JSON.stringify({
+            type: 'admin_response',
+            message: 'Admin command type detected! Flag captured!',
+            flag: '{WEBSOCKET_COMMAND_INJECTION}',
+            timestamp: new Date().toISOString()
+          }));
+        } else {
+          // Echo back normal chat messages
+          ws.send(JSON.stringify({
+            type: 'chat',
+            username: message.username || 'Anonymous',
+            message: message.message || '',
+            role: message.role || 'user',
+            timestamp: new Date().toISOString()
+          }));
+        }
+      } catch (error) {
+        ws.send(JSON.stringify({
+          type: 'error',
+          message: 'Invalid message format'
+        }));
+      }
+    });
+
+    ws.on('close', () => {
+      console.log('WebSocket client disconnected');
+    });
+  });
+  
   return httpServer;
 }

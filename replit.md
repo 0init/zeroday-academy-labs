@@ -82,6 +82,9 @@ Zeroday Academy is a comprehensive web application security training platform de
 ### Development Environment
 - **Replit Integration**: Native Replit development environment support
 - **Hot Reload**: Vite-powered development server with instant updates
+- **Environment-Driven Lab Loading**: Use `LAB_LEVEL=intermediate npm run dev` to test intermediate labs in development mode with hot reload
+  - Default (beginner): `npm run dev`
+  - Intermediate labs: `LAB_LEVEL=intermediate npm run dev`
 - **Environment Variables**: Database connection and auth configuration through Replit secrets
 
 ### Production Build
@@ -99,6 +102,15 @@ Zeroday Academy is a comprehensive web application security training platform de
 
 ```
 Changelog:
+- October 2, 2025: Completed all three intermediate vulnerability labs
+  * Implemented HTTP Host Header Injection lab with password reset poisoning scenario
+  * Created Race Condition Exploitation lab with TOCTOU vulnerability for discount code bypass
+  * Built WebSocket Message Manipulation lab with real-time privilege escalation
+  * Added WebSocket server support (ws library) for real-time message tampering exploitation
+  * Enhanced development environment with LAB_LEVEL env variable (LAB_LEVEL=intermediate npm run dev)
+  * All three labs include comprehensive exploitation guides, Burp Suite instructions, and flag rewards
+  * Updated frontend components to use Lucide React icons (replaced Material Icons)
+  * Built intermediate production version successfully with all 9 labs functional
 - January 27, 2025: Successful Ubuntu server deployment completed and platform LIVE
   * Zeroday Academy platform successfully deployed and accessible at http://159.89.1.119:5000
   * Resolved Node.js application startup issues with proper environment configuration
