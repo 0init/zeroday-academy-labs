@@ -102,6 +102,13 @@ Zeroday Academy is a comprehensive web application security training platform de
 
 ```
 Changelog:
+- October 2, 2025: Enhanced labs with flag rewards and comprehensive descriptions
+  * Added flag rewards to SQL Injection lab (2 flags: Union data extraction & Auth bypass)
+  * Updated SQL Injection lab card with comprehensive 4-line vulnerability description
+  * Enhanced Advanced CSRF lab with 2 flag rewards for successful exploitation
+  * All critical labs now include flag rewards for successful exploitation
+  * Improved lab descriptions to explain vulnerabilities and exploitation techniques
+  * Successfully pushed all updates to GitHub repository using Octokit API
 - October 2, 2025: Completed all three intermediate vulnerability labs
   * Implemented HTTP Host Header Injection lab with password reset poisoning scenario
   * Created Race Condition Exploitation lab with TOCTOU vulnerability for discount code bypass
