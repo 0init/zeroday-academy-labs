@@ -17,8 +17,11 @@ export default function LdapInjectionLab() {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <p className="text-gray-300">
-          Exploit LDAP directory services by injecting malicious LDAP queries to bypass authentication and extract directory information.
+        <p className="text-gray-300 text-sm leading-relaxed">
+          LDAP Injection exploits vulnerable directory service queries to bypass authentication and enumerate sensitive organizational data.
+          Master techniques to inject wildcard characters, boolean operators, and filter manipulation to extract user accounts, groups,
+          and privileged directory objects. Learn to use Burp Suite to craft LDAP filter payloads, bypass authentication mechanisms, and
+          exploit AND/OR logic flaws to gain unauthorized access to corporate directory information and administrative accounts.
         </p>
         
         <div className="flex gap-3">

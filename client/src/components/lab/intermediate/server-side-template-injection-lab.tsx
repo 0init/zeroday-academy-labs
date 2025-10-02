@@ -17,8 +17,12 @@ export default function ServerSideTemplateInjectionLab() {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <p className="text-gray-300">
-          Exploit template engines like Jinja2, Freemarker, and Velocity to achieve remote code execution through template injection.
+        <p className="text-gray-300 text-sm leading-relaxed">
+          Server-Side Template Injection allows attackers to inject malicious template syntax to execute arbitrary code on the server.
+          Learn to exploit template engines like Jinja2, FreeMarker, and Velocity by crafting payloads that escape template sandboxes,
+          access internal objects, and achieve remote code execution. Practice identifying SSTI vulnerabilities using detection payloads,
+          enumerating template context objects, and exploiting built-in functions to execute system commands and exfiltrate sensitive
+          server configuration data for complete system compromise.
         </p>
         
         <div className="flex gap-3">

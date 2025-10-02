@@ -17,8 +17,11 @@ export default function NoSqlInjectionLab() {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <p className="text-gray-300">
-          Exploit MongoDB and other NoSQL databases through operator injection, JavaScript injection, and schema manipulation attacks.
+        <p className="text-gray-300 text-sm leading-relaxed">
+          NoSQL Injection targets MongoDB and other document-based databases through operator injection and JavaScript code execution.
+          Practice exploiting $ne, $gt, $regex operators to bypass authentication, extract multiple user records, and enumerate database
+          collections. Learn to use Burp Suite to inject malicious MongoDB operators in JSON payloads, manipulate query logic with boolean
+          conditions, and exploit JavaScript execution contexts to achieve database enumeration and privilege escalation attacks.
         </p>
         
         <div className="flex gap-3">

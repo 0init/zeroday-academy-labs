@@ -17,8 +17,12 @@ export default function GraphqlInjectionLab() {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <p className="text-gray-300">
-          Exploit GraphQL APIs through introspection attacks, query depth exploitation, and field injection techniques.
+        <p className="text-gray-300 text-sm leading-relaxed">
+          GraphQL Injection exploits API endpoints to extract sensitive schema information and bypass access controls through query manipulation.
+          Master introspection queries using __schema and __type directives to discover hidden fields, types, and sensitive data structures.
+          Practice crafting malicious queries to bypass authentication, enumerate user data, and extract passwords through field injection.
+          Learn to use Burp Suite to analyze GraphQL endpoints, perform query batching attacks, and exploit verbose error messages for
+          complete API enumeration and data exfiltration.
         </p>
         
         <div className="flex gap-3">

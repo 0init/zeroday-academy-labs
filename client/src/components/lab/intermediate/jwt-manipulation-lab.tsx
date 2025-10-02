@@ -17,8 +17,11 @@ export default function JwtManipulationLab() {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <p className="text-gray-300">
-          Exploit JSON Web Token vulnerabilities including algorithm confusion, none attacks, and weak secret brute-forcing.
+        <p className="text-gray-300 text-sm leading-relaxed">
+          JWT Manipulation exploits cryptographic weaknesses in JSON Web Tokens to achieve privilege escalation and authentication bypass.
+          Master techniques to exploit algorithm confusion attacks, modify token claims, and bypass signature verification using "none" algorithm.
+          Practice using Burp Suite to decode JWT tokens, manipulate user roles and permissions in the payload, and analyze weak secret keys.
+          Learn to escalate from regular user to administrator privileges by crafting modified tokens that grant elevated access rights.
         </p>
         
         <div className="flex gap-3">

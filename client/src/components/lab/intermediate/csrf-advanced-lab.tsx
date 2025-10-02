@@ -17,8 +17,12 @@ export default function CsrfAdvancedLab() {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <p className="text-gray-300">
-          Exploit Cross-Site Request Forgery vulnerabilities by bypassing SameSite cookie protections and CSRF tokens.
+        <p className="text-gray-300 text-sm leading-relaxed">
+          Advanced CSRF attacks exploit modern web applications by bypassing SameSite cookie protections and token-based defenses.
+          Learn to craft sophisticated attack payloads that circumvent CSRF protections through subdomain attacks, token leakage, and
+          timing-based exploits. Practice using Burp Suite to analyze cookie attributes, identify token generation weaknesses, and build
+          malicious HTML pages that trigger unauthorized fund transfers, password changes, and account modifications in victim browsers
+          without their knowledge or consent.
         </p>
         
         <div className="flex gap-3">
