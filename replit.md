@@ -102,6 +102,14 @@ Zeroday Academy is a comprehensive web application security training platform de
 
 ```
 Changelog:
+- October 4, 2025: Fixed "Coming Soon" placeholders - All beginner labs now fully functional
+  * Identified duplicate XXE endpoint stub in routes.ts that was blocking full implementation
+  * Removed stub XXE endpoint to enable full file access, SSRF, and flag reward functionality
+  * Verified all three previously incomplete labs now working: XXE, Access Control, Security Misconfiguration
+  * XXE lab: Successfully extracts /etc/passwd, /etc/shadow, config files with flag {XXE_FILE_ACCESS_SUCCESSFUL}
+  * Access Control lab: IDOR vulnerability exposes admin data with SSN, credit cards, flag {IDOR_ADMIN_DATA_ACCESS}
+  * Security Misconfiguration lab: Debug mode exposes database credentials and server configuration
+  * All 8 beginner labs now provide complete, realistic penetration testing practice with proper exploitation paths
 - October 2, 2025: Completed comprehensive flag rewards and descriptions for ALL labs
   * Added flag rewards to all remaining beginner labs (XSS: 2 flags, Command Injection: 1, XXE: 1, Access Control: 1)
   * Added flag rewards to all intermediate labs (SSTI: 2, LDAP: 1, NoSQL: 2, JWT: 1, GraphQL: 1)

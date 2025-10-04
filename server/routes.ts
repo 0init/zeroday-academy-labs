@@ -1599,22 +1599,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   });
 
-  // Enhanced XXE vulnerability endpoint with realistic XML processing
-  apiRouter.get('/vuln/xxe', (req: Request, res: Response) => {
-    const { xml, file, url, entity } = req.query;
-    
-    // Simulated XXE vulnerability for training
-    const xmlResponse = `<?xml version="1.0" encoding="UTF-8"?>
-<response>
-  <message>XXE processing enabled</message>
-  <vulnerability>XML External Entity</vulnerability>
-  <description>This endpoint would process XML with external entities enabled</description>
-</response>`;
-    
-    res.set('Content-Type', 'application/xml');
-    return res.send(xmlResponse);
-  });
-  
   // Helper function to check if requested fields include sensitive data
   function checkForSensitiveAccess(fields: string[]): boolean {
     const sensitivePatterns = [
