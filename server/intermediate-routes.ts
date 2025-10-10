@@ -143,7 +143,7 @@ export async function registerIntermediateRoutes(app: Express): Promise<Server> 
             <div class="container">
               <h1>🔥 Server-Side Template Injection - Intermediate</h1>
               <div style="background: #7f1d1d; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
-                <strong>⚠️ Advanced Lab:</strong> Practice SSTI attacks for RCE.
+                <strong>⚠️ Advanced Lab:</strong> Practice SSTI attacks with WAF bypass techniques.
               </div>
               <form method="get" action="/api/vuln/ssti">
                 <label style="color: #ff6b6b; font-weight: bold;">Template Input:</label><br>
@@ -152,9 +152,11 @@ export async function registerIntermediateRoutes(app: Express): Promise<Server> 
               </form>
               <div style="background: #1e293b; padding: 15px; border-radius: 5px; margin-top: 20px;">
                 <h3 style="color: #fbbf24;">💡 Advanced Payloads:</h3>
-                <div style="margin: 10px 0; font-family: monospace; background: #0f172a; padding: 8px; border-radius: 3px;">Math: {{7*7}}</div>
+                <div style="margin: 10px 0; font-family: monospace; background: #0f172a; padding: 8px; border-radius: 3px;">Basic: {{7*7}}</div>
                 <div style="margin: 10px 0; font-family: monospace; background: #0f172a; padding: 8px; border-radius: 3px;">Config: {{config}}</div>
                 <div style="margin: 10px 0; font-family: monospace; background: #0f172a; padding: 8px; border-radius: 3px;">RCE: {{config.__class__.__init__.__globals__['os'].popen('whoami').read()}}</div>
+                <div style="margin: 10px 0; font-family: monospace; background: #0f172a; padding: 8px; border-radius: 3px;">WAF Bypass (alternate delimiters): {%print(7*7)%}</div>
+                <div style="margin: 10px 0; font-family: monospace; background: #0f172a; padding: 8px; border-radius: 3px;">Encoded: {{request.application.__globals__.__builtins__.__import__('os').popen('id').read()}}</div>
               </div>
             </div>
           </body>
@@ -164,7 +166,7 @@ export async function registerIntermediateRoutes(app: Express): Promise<Server> 
 
     const templateInput = (template || input)?.toString() || '';
     
-    // Basic SSTI simulation
+    // Basic SSTI simulation with bypass detection
     if (templateInput.includes('{{') && templateInput.includes('}}')) {
       // Simple math evaluation
       const mathMatch = templateInput.match(/\{\{(\d+[\*\+\-\/]\d+)\}\}/);
@@ -199,7 +201,7 @@ export async function registerIntermediateRoutes(app: Express): Promise<Server> 
       }
       
       // RCE simulation
-      if (templateInput.includes('os.popen') || templateInput.includes('subprocess')) {
+      if (templateInput.includes('os.popen') || templateInput.includes('subprocess') || templateInput.includes('__import__')) {
         return res.json({
           success: true,
           template: templateInput,
@@ -209,6 +211,39 @@ export async function registerIntermediateRoutes(app: Express): Promise<Server> 
           flag: '{SSTI_RCE_SUCCESSFUL}'
         });
       }
+    }
+
+    // WAF Bypass Method 1: Alternate delimiters {% %}
+    if (templateInput.includes('{%') && templateInput.includes('%}')) {
+      const printMatch = templateInput.match(/\{%\s*print\(([^)]+)\)\s*%\}/);
+      if (printMatch) {
+        try {
+          const result = eval(printMatch[1]);
+          return res.json({
+            success: true,
+            template: templateInput,
+            result: result.toString(),
+            bypass_method: 'Alternate delimiter bypass',
+            warning: 'WAF bypassed using {%...%} delimiters!',
+            flag: '{SSTI_WAF_BYPASS_ALTERNATE_DELIMITERS}'
+          });
+        } catch (e) {
+          return res.json({ success: false, error: 'Execution failed' });
+        }
+      }
+    }
+
+    // WAF Bypass Method 2: String concatenation to avoid detection
+    if (templateInput.includes('__class__') || templateInput.includes('__globals__') || templateInput.includes('__builtins__')) {
+      return res.json({
+        success: true,
+        template: templateInput,
+        result: 'Advanced attribute access detected',
+        command_output: 'uid=33(www-data) gid=33(www-data) groups=33(www-data)',
+        bypass_method: 'Attribute chain bypass',
+        warning: 'WAF bypassed using attribute chaining!',
+        flag: '{SSTI_FILTER_BYPASS_ATTRIBUTE_CHAIN}'
+      });
     }
 
     return res.json({
@@ -276,7 +311,18 @@ export async function registerIntermediateRoutes(app: Express): Promise<Server> 
         <html>
           <body style="font-family: Arial; padding: 20px; background: #1a1a2e; color: #eee;">
             <h1>🍃 NoSQL Injection Lab</h1>
-            <p>Try: <code>{"$ne": ""}</code></p>
+            <div style="background: #16213e; padding: 15px; border-radius: 5px; margin: 20px 0;">
+              <h3 style="color: #fbbf24;">💡 NoSQL Operator Bypasses:</h3>
+              <p><strong>Basic:</strong> <code>{"$ne": ""}</code> - Not equal operator</p>
+              <p><strong>Advanced:</strong> <code>{"$gt": ""}</code> - Greater than operator</p>
+              <p><strong>Regex:</strong> <code>{"$regex": "^a"}</code> - Regular expression bypass</p>
+              <p><strong>Where:</strong> <code>{"$where": "1==1"}</code> - JavaScript execution</p>
+            </div>
+            <form method="get" action="/api/vuln/nosql-injection">
+              <input type="text" name="username" placeholder="Username" style="padding: 10px; margin: 5px; background: #0f172a; color: #fff; border: 1px solid #334155;"/><br>
+              <input type="text" name="password" placeholder="Password" style="padding: 10px; margin: 5px; background: #0f172a; color: #fff; border: 1px solid #334155;"/><br>
+              <button type="submit" style="background: #ff6b6b; color: white; padding: 10px 20px; border: none; border-radius: 5px; margin-top: 10px;">Login</button>
+            </form>
           </body>
         </html>
       `);
@@ -286,6 +332,7 @@ export async function registerIntermediateRoutes(app: Express): Promise<Server> 
     const user = username?.toString() || '';
     const pass = password?.toString() || '';
     
+    // Bypass Method 1: $ne operator (basic)
     if (user.includes('$ne') || pass.includes('$ne')) {
       return res.json({
         success: true,
@@ -297,6 +344,61 @@ export async function registerIntermediateRoutes(app: Express): Promise<Server> 
         },
         injection_type: 'NoSQL $ne operator bypass',
         flag: '{NOSQL_AUTH_BYPASS}'
+      });
+    }
+
+    // Bypass Method 2: $gt operator (greater than)
+    if (user.includes('$gt') || pass.includes('$gt')) {
+      return res.json({
+        success: true,
+        authenticated: true,
+        user_data: {
+          username: 'admin',
+          role: 'administrator',
+          api_keys: ['key_12345', 'key_67890'],
+          sensitive_data: 'vault_access_enabled'
+        },
+        injection_type: 'NoSQL $gt operator bypass',
+        bypass_method: 'Greater than operator',
+        warning: 'Authentication bypassed using $gt operator!',
+        flag: '{NOSQL_GT_OPERATOR_BYPASS}'
+      });
+    }
+
+    // Bypass Method 3: $regex operator (regex injection)
+    if (user.includes('$regex') || pass.includes('$regex')) {
+      return res.json({
+        success: true,
+        authenticated: true,
+        user_data: {
+          username: 'admin',
+          role: 'administrator',
+          api_keys: ['key_12345', 'key_67890'],
+          database_access: true
+        },
+        injection_type: 'NoSQL regex injection',
+        bypass_method: 'Regular expression bypass',
+        warning: 'Authentication bypassed using $regex operator!',
+        flag: '{NOSQL_REGEX_INJECTION}'
+      });
+    }
+
+    // Bypass Method 4: $where operator (JavaScript execution)
+    if (user.includes('$where') || pass.includes('$where')) {
+      return res.json({
+        success: true,
+        authenticated: true,
+        user_data: {
+          username: 'admin',
+          role: 'administrator',
+          api_keys: ['key_12345', 'key_67890'],
+          code_execution: 'enabled'
+        },
+        injection_type: 'NoSQL JavaScript injection',
+        bypass_method: '$where clause exploitation',
+        warning: 'Code execution achieved via $where operator!',
+        flag: '{NOSQL_WHERE_CODE_EXECUTION}',
+        command_output: 'JavaScript execution successful'
       });
     }
 
@@ -321,7 +423,12 @@ export async function registerIntermediateRoutes(app: Express): Promise<Server> 
                 <button type="submit" style="background: #ff6b6b; color: white; padding: 10px 20px; border: none; border-radius: 5px;">Access with Guest Token</button>
               </form>
             </div>
-            <p>Try modifying the JWT payload to gain admin access!</p>
+            <p style="background: #1e293b; padding: 15px; border-radius: 5px; margin-top: 20px;">
+              <strong style="color: #fbbf24;">💡 Bypass Techniques:</strong><br>
+              1. Modify payload to set admin=true<br>
+              2. Try "none" algorithm bypass (change alg to "none" and remove signature)<br>
+              3. Algorithm confusion attack (HS256 to RS256)
+            </p>
           </body>
         </html>
       `);
@@ -333,15 +440,35 @@ export async function registerIntermediateRoutes(app: Express): Promise<Server> 
     try {
       // Simple JWT decode simulation (base64)
       const parts = jwtToken.split('.');
-      if (parts.length === 3) {
+      if (parts.length === 3 || parts.length === 2) {
+        const header = JSON.parse(atob(parts[0]));
         const payload = JSON.parse(atob(parts[1]));
         
+        // Bypass Method 1: "none" algorithm (no signature required)
+        if (header.alg === 'none' || header.alg === 'None' || header.alg === 'NONE') {
+          if (payload.admin === true) {
+            return res.json({
+              success: true,
+              message: 'Admin access granted via "none" algorithm bypass!',
+              user: payload,
+              admin_panel: '/admin/users',
+              bypass_method: '"none" algorithm',
+              warning: 'JWT signature validation bypassed!',
+              flag: '{JWT_NONE_ALGORITHM_BYPASS}',
+              jwt_manipulation: 'successful'
+            });
+          }
+        }
+        
+        // Bypass Method 2: Standard payload manipulation
         if (payload.admin === true) {
           return res.json({
             success: true,
             message: 'Admin access granted!',
             user: payload,
             admin_panel: '/admin/users',
+            bypass_method: 'Payload manipulation',
+            flag: '{JWT_PAYLOAD_MANIPULATION}',
             jwt_manipulation: 'successful'
           });
         }
@@ -350,7 +477,7 @@ export async function registerIntermediateRoutes(app: Express): Promise<Server> 
           success: true,
           message: 'Guest access',
           user: payload,
-          hint: 'Try modifying the admin field to true'
+          hint: 'Try modifying the admin field to true, or use "none" algorithm bypass'
         });
       }
     } catch (e) {
@@ -1779,7 +1906,11 @@ export async function registerIntermediateRoutes(app: Express): Promise<Server> 
 
   apiRouter.post('/vuln/host-header-injection/reset', express.json(), (req: Request, res: Response) => {
     const { email } = req.body;
-    const host = req.get('host') || 'localhost';
+    
+    // Bypass Method 1: X-Forwarded-Host header (common bypass)
+    const xForwardedHost = req.get('x-forwarded-host');
+    const xOriginalHost = req.get('x-original-host');
+    const host = xForwardedHost || xOriginalHost || req.get('host') || 'localhost';
     const protocol = req.protocol;
     
     // Generate password reset token
@@ -1790,13 +1921,32 @@ export async function registerIntermediateRoutes(app: Express): Promise<Server> 
     
     // Flag appears when attacker successfully poisons the host
     const isExploited = !host.includes('localhost') && !host.includes('127.0.0.1') && !host.includes('replit');
-    const flag = isExploited ? '{HOST_HEADER_INJECTION_PASSWORD_RESET_POISONED}' : null;
+    
+    let flag = null;
+    let bypass_method = null;
+    
+    if (xForwardedHost) {
+      flag = '{HOST_HEADER_X_FORWARDED_HOST_BYPASS}';
+      bypass_method = 'X-Forwarded-Host header bypass';
+    } else if (xOriginalHost) {
+      flag = '{HOST_HEADER_X_ORIGINAL_HOST_BYPASS}';
+      bypass_method = 'X-Original-Host header bypass';
+    } else if (isExploited) {
+      flag = '{HOST_HEADER_INJECTION_PASSWORD_RESET_POISONED}';
+      bypass_method = 'Direct Host header manipulation';
+    }
 
     return res.json({
       success: true,
       resetLink,
       token,
       flag,
+      bypass_method,
+      headers_used: {
+        host: req.get('host'),
+        xForwardedHost: xForwardedHost || null,
+        xOriginalHost: xOriginalHost || null
+      },
       message: 'Password reset link generated'
     });
   });
@@ -1806,20 +1956,137 @@ export async function registerIntermediateRoutes(app: Express): Promise<Server> 
     
     if (!query) {
       return res.send(`
+        <!DOCTYPE html>
         <html>
-          <body style="font-family: Arial; padding: 20px; background: #1a1a2e; color: #eee;">
-            <h1>📊 GraphQL Injection Lab</h1>
-            <form method="get" action="/api/vuln/graphql-injection">
-              <textarea name="query" placeholder="{ users { id username } }" style="width: 100%; height: 100px; padding: 10px; background: #0f172a; color: #fff; border: 1px solid #334155;"></textarea>
-              <button type="submit" style="background: #ff6b6b; color: white; padding: 10px 20px; border: none; border-radius: 5px; margin-top: 10px;">Execute Query</button>
-            </form>
+          <head>
+            <title>GraphQL Injection Lab - Intermediate</title>
+            <style>
+              body { font-family: Arial; padding: 20px; background: #1a1a2e; color: #eee; }
+              .container { max-width: 1000px; margin: 0 auto; }
+              h1 { color: #ff6b6b; }
+              .info-box { background: #16213e; padding: 15px; border-radius: 5px; margin: 15px 0; }
+              textarea { width: 100%; height: 150px; padding: 10px; background: #0f172a; color: #fff; border: 1px solid #334155; font-family: monospace; }
+              button { background: #ff6b6b; color: white; padding: 10px 20px; border: none; border-radius: 5px; margin-top: 10px; cursor: pointer; }
+              .payload { background: #0f172a; padding: 8px; border-radius: 3px; margin: 5px 0; font-family: monospace; font-size: 13px; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <h1>📊 GraphQL Injection Lab - Intermediate</h1>
+              <div class="info-box">
+                <h3 style="color: #fbbf24;">💡 GraphQL Bypass Techniques:</h3>
+                <div class="payload"><strong>Introspection:</strong> { __schema { types { name } } }</div>
+                <div class="payload"><strong>Batching:</strong> [{ users { id } }, { posts { title } }]</div>
+                <div class="payload"><strong>Deep Nesting:</strong> { users { posts { comments { author { posts { ... } } } } } }</div>
+                <div class="payload"><strong>Field Suggestions:</strong> { users { id username __typename } }</div>
+              </div>
+              <form method="get" action="/api/vuln/graphql-injection">
+                <textarea name="query" placeholder="{ users { id username email } }"></textarea>
+                <button type="submit">Execute GraphQL Query</button>
+              </form>
+            </div>
           </body>
         </html>
       `);
     }
 
-    // GraphQL injection simulation
-    if (query?.toString().includes('users')) {
+    const queryStr = query?.toString() || '';
+
+    // Bypass Method 1: Introspection query to discover schema
+    if (queryStr.includes('__schema') || queryStr.includes('__type')) {
+      return res.json({
+        data: {
+          __schema: {
+            types: [
+              { name: 'User', kind: 'OBJECT', fields: [
+                { name: 'id', type: 'Int' },
+                { name: 'username', type: 'String' },
+                { name: 'email', type: 'String' },
+                { name: 'password', type: 'String' },
+                { name: 'apiKey', type: 'String' },
+                { name: 'role', type: 'String' }
+              ]},
+              { name: 'Admin', kind: 'OBJECT', fields: [
+                { name: 'id', type: 'Int' },
+                { name: 'username', type: 'String' },
+                { name: 'secretKey', type: 'String' }
+              ]}
+            ],
+            queryType: { name: 'Query' }
+          }
+        },
+        bypass_method: 'Introspection query',
+        warning: 'Schema introspection should be disabled in production!',
+        flag: '{GRAPHQL_INTROSPECTION_BYPASS}',
+        query_executed: queryStr
+      });
+    }
+
+    // Bypass Method 2: Query batching (array of queries)
+    if (queryStr.startsWith('[') || queryStr.includes('query1') || queryStr.includes('query2')) {
+      return res.json({
+        data: [
+          {
+            users: [
+              { id: 1, username: 'admin', email: 'admin@company.com', password: 'hashed_admin_password' }
+            ]
+          },
+          {
+            posts: [
+              { id: 1, title: 'Secret Admin Post', content: 'Flag: {GRAPHQL_BATCH_QUERY_BYPASS}' }
+            ]
+          }
+        ],
+        bypass_method: 'Query batching',
+        warning: 'Multiple queries executed in single request!',
+        flag: '{GRAPHQL_BATCH_QUERY_BYPASS}',
+        query_executed: queryStr
+      });
+    }
+
+    // Bypass Method 3: Deep nesting / circular query (depth limit bypass)
+    const nestingLevel = (queryStr.match(/{/g) || []).length;
+    if (nestingLevel > 5) {
+      return res.json({
+        data: {
+          users: [{
+            id: 1,
+            username: 'admin',
+            posts: [{
+              comments: [{
+                author: {
+                  sensitiveData: 'Deep nesting exposed admin secrets!',
+                  apiKey: 'sk_live_admin_key_12345'
+                }
+              }]
+            }]
+          }]
+        },
+        bypass_method: 'Deep nesting exploitation',
+        nesting_depth: nestingLevel,
+        warning: 'Query depth limits bypassed!',
+        flag: '{GRAPHQL_DEPTH_LIMIT_BYPASS}',
+        query_executed: queryStr
+      });
+    }
+
+    // Bypass Method 4: Field suggestion / typename introspection
+    if (queryStr.includes('__typename')) {
+      return res.json({
+        data: {
+          users: [
+            { id: 1, username: 'admin', email: 'admin@company.com', __typename: 'AdminUser', secretField: 'admin_secret_data' }
+          ]
+        },
+        bypass_method: 'Field suggestion via __typename',
+        warning: 'Type information exposed sensitive user types!',
+        flag: '{GRAPHQL_TYPENAME_DISCLOSURE}',
+        query_executed: queryStr
+      });
+    }
+
+    // Standard query execution
+    if (queryStr.includes('users')) {
       return res.json({
         data: {
           users: [
@@ -1827,8 +2094,9 @@ export async function registerIntermediateRoutes(app: Express): Promise<Server> 
             { id: 2, username: 'user1', email: 'user1@company.com' }
           ]
         },
-        query_executed: query,
-        vulnerability: 'Unrestricted query execution'
+        query_executed: queryStr,
+        vulnerability: 'Unrestricted query execution',
+        hint: 'Try introspection (__schema), batching, deep nesting, or __typename'
       });
     }
 
@@ -1846,11 +2114,50 @@ export async function registerIntermediateRoutes(app: Express): Promise<Server> 
   // WebSocket server for message manipulation lab
   const wss = new WebSocketServer({ 
     server: httpServer,
-    path: '/ws-chat'
+    path: '/ws-chat',
+    // Bypass Method: Weak origin validation that can be bypassed
+    verifyClient: (info) => {
+      const origin = info.origin || info.req.headers.origin;
+      
+      // Vulnerable: Simple substring check can be bypassed
+      // Attacker can use: evil.com.trusted.com or trusted-evil.com
+      if (origin && origin.includes('trusted')) {
+        console.log('Origin bypass successful:', origin);
+        return true;
+      }
+      
+      // Allow connections without origin header (bypass method)
+      if (!origin) {
+        console.log('No origin header - connection allowed');
+        return true;
+      }
+      
+      // Default allow (weak security)
+      return true;
+    }
   });
 
-  wss.on('connection', (ws: WebSocket) => {
+  wss.on('connection', (ws: WebSocket, req) => {
     console.log('WebSocket client connected');
+    
+    // Check for origin bypass flag
+    const origin = req.headers.origin;
+    let originBypassFlag = null;
+    
+    if (origin && origin.includes('trusted') && !origin.startsWith('http://localhost')) {
+      originBypassFlag = '{WEBSOCKET_ORIGIN_VALIDATION_BYPASS}';
+    }
+
+    // Send initial connection response with bypass status
+    if (originBypassFlag) {
+      ws.send(JSON.stringify({
+        type: 'connection',
+        message: 'Connected with bypassed origin validation!',
+        origin: origin,
+        flag: originBypassFlag,
+        timestamp: new Date().toISOString()
+      }));
+    }
 
     ws.on('message', (data: Buffer) => {
       try {

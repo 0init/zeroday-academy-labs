@@ -102,6 +102,17 @@ Zeroday Academy is a comprehensive web application security training platform de
 
 ```
 Changelog:
+- October 10, 2025: Enhanced all intermediate labs with intermediate-level bypass methods
+  * Added SSTI bypass methods: Alternate delimiter bypass ({%...%}) and attribute chain filter evasion
+  * Implemented JWT "none" algorithm bypass for signature verification bypass
+  * Added NoSQL bypass operators: $gt (greater-than), $regex (pattern matching), $where (JS execution)
+  * Created GraphQL bypass techniques: Introspection queries, query batching, depth limit bypass, __typename disclosure
+  * Implemented WebSocket origin validation bypass with weak substring checking
+  * Added HTTP Host Header bypass methods: X-Forwarded-Host and X-Original-Host header manipulation
+  * All 9 intermediate labs now include at least one bypass method suitable for intermediate complexity
+  * Created comprehensive bypass techniques documentation in INTERMEDIATE_LABS_WALKTHROUGH.md
+  * Each bypass method includes unique flags for successful exploitation verification
+  * Bypass methods simulate real-world scenarios where basic exploitation is blocked by security controls
 - October 4, 2025: Fixed "Coming Soon" placeholders - All beginner labs now fully functional
   * Identified duplicate XXE endpoint stub in routes.ts that was blocking full implementation
   * Removed stub XXE endpoint to enable full file access, SSRF, and flag reward functionality
