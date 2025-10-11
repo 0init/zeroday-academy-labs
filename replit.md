@@ -54,3 +54,39 @@ Preferred communication style: Simple, everyday language.
 - `tsx`: TypeScript execution for Node.js.
 - `vite`: Build tool and development server.
 - `esbuild`: Fast JavaScript bundler.
+
+## Recent Changes
+
+### October 11, 2025: Critical Documentation Fix - INTERMEDIATE_LABS_WALKTHROUGH.md Corrected
+**Issue Found:** The INTERMEDIATE_LABS_WALKTHROUGH.md file contained documentation for completely different labs than what was actually implemented in the code.
+
+**What Was Wrong:**
+- Documentation showed: "Advanced" versions of beginner labs (Blind SQL Injection Advanced, Stored XSS with Filter Bypass, Advanced Authentication Bypass, etc.)
+- These labs were never implemented in `server/intermediate-routes.ts`
+
+**What Was Fixed:**
+- Completely rewrote INTERMEDIATE_LABS_WALKTHROUGH.md to document the **actual 9 implemented intermediate labs**:
+  1. Server-Side Template Injection (SSTI) - with WAF bypass and filter evasion
+  2. LDAP Injection - with wildcard, comment injection, and boolean-based blind techniques
+  3. NoSQL Injection - with $gt, $regex, $where operator bypasses
+  4. JWT Manipulation - with algorithm confusion and "none" bypass
+  5. Advanced CSRF - with SameSite=None exploitation
+  6. GraphQL Injection - with introspection, batching, depth limit, __typename bypasses
+  7. WebSocket Manipulation - with origin validation bypass
+  8. Race Condition - with TOCTOU exploitation techniques
+  9. HTTP Host Header Injection - with X-Forwarded-Host and X-Original-Host bypasses
+
+**Documentation Now Includes:**
+- Detailed exploitation steps for each lab
+- Bypass techniques marked with ⭐
+- curl and Burp Suite instructions
+- Automation scripts (Python, bash)
+- Unique flags for each bypass method
+- Prevention measures for each vulnerability
+
+**Status:** Documentation now accurately reflects the implemented codebase.
+
+### October 10, 2025: Documentation Updates - All Bypass Techniques Documented
+- Updated BEGINNER_LABS_WALKTHROUGH.md: Fixed from 9 to 8 labs (removed Insecure Deserialization)
+- Updated Zeroday_Academy_Labs_Writeup.md: Complete writeup for all 17 labs with bypass techniques
+- All documentation consistent with 8 beginner + 9 intermediate labs architecture
