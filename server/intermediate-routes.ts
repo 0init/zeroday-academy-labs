@@ -2318,7 +2318,7 @@ export async function registerIntermediateRoutes(app: Express): Promise<Server> 
                     Expiration: '2024-12-31T23:59:59Z'
                   }
                 },
-                user-data: '#!/bin/bash\\nAWS_ACCESS_KEY=AKIA...'
+                'user-data': '#!/bin/bash\\nAWS_ACCESS_KEY=AKIA...'
               }
             },
             vulnerability: 'SSRF - AWS Metadata Service Access',
@@ -2410,11 +2410,6 @@ admin:x:1000:1000:Admin User:/home/admin:/bin/bash
         vulnerability: 'Error details leaked in SSRF response'
       });
     }
-  });
-
-  // Fallback route for SPA - serve main HTML file for any non-API route
-  app.get('*', (req: Request, res: Response) => {
-    res.sendFile('index-intermediate.html', { root: 'dist/intermediate/public' });
   });
 
   // Create HTTP server
