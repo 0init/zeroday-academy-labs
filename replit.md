@@ -57,6 +57,30 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
+### October 17, 2025: Documentation Completed for All New Labs
+**Comprehensive Documentation Added:**
+All three documentation files have been updated to reflect the new 21-lab curriculum (11 beginner + 10 intermediate):
+
+1. **BEGINNER_LABS_WALKTHROUGH.md**:
+   - Added Labs #9, #10, #11 (API security labs)
+   - Full exploitation steps with Burp Suite instructions
+   - Multiple flags per lab (total 12 new flags)
+   - Automation scripts and prevention measures
+
+2. **INTERMEDIATE_LABS_WALKTHROUGH.md**:
+   - Added Lab #10 (SSRF via URL Fetcher)
+   - 7 exploitation scenarios: localhost, internal networks, AWS/GCP/Azure metadata, file access
+   - Advanced bypass techniques with IP encoding
+   - Python and bash automation scripts
+
+3. **Zeroday_Academy_Labs_Writeup.md**:
+   - Updated table of contents (8→11 beginner, 9→10 intermediate)
+   - Added concise summaries for all 4 new labs
+   - Updated conclusion from 17 to 21 labs
+   - References detailed walkthrough files
+
+**Architect Status:** All documentation reviewed and approved as production-ready.
+
 ### October 17, 2025: New Labs Added - API Security & SSRF
 **New Beginner Labs (3 API Security Labs):**
 1. Unauthenticated API Endpoints - Discover and exploit APIs without authentication checks
