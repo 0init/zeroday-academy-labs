@@ -27,7 +27,7 @@ Preferred communication style: Simple, everyday language.
 - **Session Store**: PostgreSQL-based for Replit Auth.
 
 ### Key Features
-- **Lab Management**: 8 Beginner and 9 Intermediate labs with interactive components and progress tracking.
+- **Lab Management**: 11 Beginner and 10 Intermediate labs with interactive components and progress tracking.
 - **Vulnerability Simulation**: Live, vulnerable endpoints for testing, configured for tools like Burp Suite.
 - **Educational Content**: Step-by-step walkthroughs, tool integration instructions, and command examples.
 - **Authentication & Authorization**: Replit Auth integration ensures secure user and session management, persisting user progress.
@@ -56,6 +56,43 @@ Preferred communication style: Simple, everyday language.
 - `esbuild`: Fast JavaScript bundler.
 
 ## Recent Changes
+
+### October 17, 2025: New Labs Added - API Security & SSRF
+**New Beginner Labs (3 API Security Labs):**
+1. Unauthenticated API Endpoints - Discover and exploit APIs without authentication checks
+   - Endpoint: `/api/vuln/api-unauth`
+   - Multiple attack scenarios: users, admin, debug, secret endpoints
+   - Teaches API enumeration and missing authentication vulnerabilities
+
+2. Sensitive Data in API Responses - Analyze API responses for leaked credentials and data
+   - Endpoint: `/api/vuln/api-sensitive-data`
+   - Scenarios: profile data leaks, verbose errors, config exposure
+   - Demonstrates overly verbose API responses and data leakage
+
+3. Predictable IDs & IDOR - Exploit sequential IDs to access unauthorized resources
+   - Endpoint: `/api/vuln/api-predictable-ids`
+   - User profiles, invoices, and documents with predictable IDs
+   - Teaches Insecure Direct Object Reference (IDOR) vulnerabilities
+
+**New Intermediate Lab:**
+1. SSRF via URL Fetcher - Server-Side Request Forgery exploitation
+   - Endpoint: `/api/vuln/ssrf`
+   - Localhost access, internal network enumeration
+   - Cloud metadata exploitation (AWS, GCP, Azure)
+   - IP encoding bypasses and file protocol access
+   - Multiple flags for different SSRF techniques
+
+**Lab Statistics:**
+- Beginner Labs: 11 (was 8, added 3)
+- Intermediate Labs: 10 (was 9, added 1)
+- Total Labs: 21 comprehensive penetration testing exercises
+
+**Implementation Details:**
+- All new lab components created in React with TypeScript
+- Backend vulnerable endpoints implemented in Express
+- Interactive HTML interfaces for each lab
+- Multiple flags and bypass techniques per lab
+- Educational content and attack examples included
 
 ### October 17, 2025: Replit Environment Setup Complete
 **GitHub Import Configuration:**

@@ -4146,6 +4146,532 @@ export async function registerRoutes(app: Express): Promise<Server> {
     `);
   });
 
+  // ===================================
+  // API SECURITY LABS (3 BEGINNER LABS)
+  // ===================================
+
+  // 1. Unauthenticated API Endpoints Lab
+  apiRouter.get('/vuln/api-unauth', (req: Request, res: Response) => {
+    const { action } = req.query;
+    
+    if (!action) {
+      return res.send(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>API Security - Unauthenticated Endpoints</title>
+            <style>
+              body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #1a1a2e; color: #eee; }
+              .container { max-width: 900px; margin: 0 auto; background: #16213e; padding: 30px; border-radius: 10px; }
+              h1 { color: #00d9ff; text-align: center; margin-bottom: 30px; }
+              .endpoint { background: #0f172a; padding: 15px; border-radius: 5px; margin: 15px 0; border-left: 4px solid #00d9ff; }
+              button { background: linear-gradient(45deg, #667eea 0%, #764ba2 100%); color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; margin: 5px; }
+              .result { background: #1e293b; padding: 15px; border-radius: 5px; margin-top: 20px; }
+              code { background: #0f172a; padding: 2px 6px; border-radius: 3px; color: #00d9ff; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <h1>🔓 Unauthenticated API Endpoints Lab</h1>
+              <div style="background: #7f1d1d; border: 2px solid #dc2626; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+                <strong>⚠️ Beginner Lab:</strong> Discover and exploit APIs without authentication checks.
+              </div>
+              
+              <div class="endpoint">
+                <h3>🎯 Mission: Discover Hidden API Endpoints</h3>
+                <p>Find and exploit unprotected administrative endpoints that lack authentication.</p>
+              </div>
+              
+              <div class="endpoint">
+                <h3>📋 Available Endpoints:</h3>
+                <button onclick="testEndpoint('users')">GET /api/vuln/api-unauth?action=users</button>
+                <button onclick="testEndpoint('admin')">GET /api/vuln/api-unauth?action=admin</button>
+                <button onclick="testEndpoint('debug')">GET /api/vuln/api-unauth?action=debug</button>
+                <button onclick="testEndpoint('secret')">GET /api/vuln/api-unauth?action=secret</button>
+              </div>
+              
+              <div class="result" id="result" style="display:none;">
+                <h3>📊 API Response:</h3>
+                <pre id="response-data" style="background: #0f172a; padding: 15px; border-radius: 5px; overflow-x: auto;"></pre>
+              </div>
+              
+              <div style="background: #1e293b; padding: 15px; border-radius: 5px; margin-top: 20px;">
+                <h3 style="color: #fbbf24;">💡 Attack Techniques:</h3>
+                <p><strong>Fuzzing:</strong> <code>ffuf -u "http://localhost:5000/api/vuln/api-unauth?action=FUZZ" -w wordlist.txt</code></p>
+                <p><strong>Burp Suite:</strong> Enumerate endpoints using Intruder with common API paths</p>
+                <p><strong>Manual Testing:</strong> Try: <code>users, admin, debug, config, metrics, health, internal</code></p>
+              </div>
+            </div>
+            
+            <script>
+              async function testEndpoint(action) {
+                const result = document.getElementById('result');
+                const responseData = document.getElementById('response-data');
+                result.style.display = 'block';
+                responseData.textContent = 'Loading...';
+                
+                try {
+                  const response = await fetch(\`/api/vuln/api-unauth?action=\${action}\`);
+                  const data = await response.json();
+                  responseData.textContent = JSON.stringify(data, null, 2);
+                } catch (error) {
+                  responseData.textContent = 'Error: ' + error.message;
+                }
+              }
+            </script>
+          </body>
+        </html>
+      `);
+    }
+    
+    // Vulnerable: No authentication check!
+    switch (action) {
+      case 'users':
+        return res.json({
+          success: true,
+          data: [
+            { id: 1, username: 'admin', email: 'admin@company.com', role: 'administrator' },
+            { id: 2, username: 'john', email: 'john@company.com', role: 'user' },
+            { id: 3, username: 'sarah', email: 'sarah@company.com', role: 'user' }
+          ],
+          message: 'User list retrieved (no auth required!)'
+        });
+        
+      case 'admin':
+        return res.json({
+          success: true,
+          flag: 'FLAG{unauth_admin_access_2024}',
+          data: {
+            adminPanel: true,
+            privileges: ['delete_users', 'modify_roles', 'access_logs'],
+            secretKeys: {
+              apiKey: 'sk_live_abc123xyz789',
+              dbPassword: 'SuperSecret123!'
+            }
+          },
+          message: '🚨 Critical: Admin endpoint without authentication!'
+        });
+        
+      case 'debug':
+        return res.json({
+          success: true,
+          flag: 'FLAG{debug_endpoint_exposed}',
+          debug: {
+            environment: 'production',
+            database: 'postgresql://admin:password@db.internal:5432/maindb',
+            apiKeys: {
+              stripe: 'sk_live_stripe_key_12345',
+              aws: 'AKIAIOSFODNN7EXAMPLE'
+            },
+            internalAPIs: [
+              'http://internal-api.company.local/admin',
+              'http://192.168.1.100/metrics',
+              'http://localhost:9000/actuator'
+            ]
+          },
+          message: 'Debug information exposed without authentication'
+        });
+        
+      case 'secret':
+        return res.json({
+          success: true,
+          flag: 'FLAG{master_flag_api_unauth}',
+          secrets: {
+            masterKey: 'mk_live_1234567890abcdef',
+            jwtSecret: 'my-super-secret-jwt-key-12345',
+            encryptionKey: 'AES256-encryption-key-here'
+          },
+          message: '🔐 Critical secrets exposed!'
+        });
+        
+      default:
+        return res.status(404).json({
+          success: false,
+          message: 'Endpoint not found. Try: users, admin, debug, secret'
+        });
+    }
+  });
+
+  // 2. Sensitive Data in API Responses Lab
+  apiRouter.get('/vuln/api-sensitive-data', (req: Request, res: Response) => {
+    const { endpoint } = req.query;
+    
+    if (!endpoint) {
+      return res.send(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>API Security - Sensitive Data in Responses</title>
+            <style>
+              body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #1a1a2e; color: #eee; }
+              .container { max-width: 900px; margin: 0 auto; background: #16213e; padding: 30px; border-radius: 10px; }
+              h1 { color: #00d9ff; text-align: center; margin-bottom: 30px; }
+              .endpoint { background: #0f172a; padding: 15px; border-radius: 5px; margin: 15px 0; border-left: 4px solid #00d9ff; }
+              button { background: linear-gradient(45deg, #667eea 0%, #764ba2 100%); color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; margin: 5px; }
+              .result { background: #1e293b; padding: 15px; border-radius: 5px; margin-top: 20px; }
+              .warning { background: #7f1d1d; padding: 10px; border-radius: 5px; color: #fca5a5; margin: 10px 0; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <h1>📊 Sensitive Data in API Responses Lab</h1>
+              <div style="background: #7f1d1d; border: 2px solid #dc2626; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+                <strong>⚠️ Beginner Lab:</strong> APIs often leak sensitive data in responses.
+              </div>
+              
+              <div class="endpoint">
+                <h3>🎯 Mission: Find Sensitive Data Leaks</h3>
+                <p>Analyze API responses to discover passwords, tokens, and internal data.</p>
+              </div>
+              
+              <div class="endpoint">
+                <h3>📋 Test These Endpoints:</h3>
+                <button onclick="testEndpoint('profile')">GET /profile</button>
+                <button onclick="testEndpoint('login-error')">GET /login-error</button>
+                <button onclick="testEndpoint('config')">GET /config</button>
+                <button onclick="testEndpoint('error')">GET /error</button>
+              </div>
+              
+              <div class="result" id="result" style="display:none;">
+                <h3>📊 API Response:</h3>
+                <pre id="response-data" style="background: #0f172a; padding: 15px; border-radius: 5px; overflow-x: auto;"></pre>
+                <div id="warnings"></div>
+              </div>
+              
+              <div style="background: #1e293b; padding: 15px; border-radius: 5px; margin-top: 20px;">
+                <h3 style="color: #fbbf24;">💡 What to Look For:</h3>
+                <p>• Passwords in plaintext or hashed form</p>
+                <p>• API keys and secret tokens</p>
+                <p>• Internal IDs and database structures</p>
+                <p>• Stack traces revealing file paths</p>
+                <p>• Configuration details</p>
+              </div>
+            </div>
+            
+            <script>
+              function highlightSensitive(obj, warnings = []) {
+                const sensitiveKeys = ['password', 'token', 'secret', 'key', 'apiKey', 'hash', 'salt'];
+                const jsonStr = JSON.stringify(obj, null, 2);
+                
+                for (const key of sensitiveKeys) {
+                  if (jsonStr.toLowerCase().includes(key.toLowerCase())) {
+                    warnings.push(\`🚨 Sensitive data found: "\${key}"\`);
+                  }
+                }
+                
+                return warnings;
+              }
+              
+              async function testEndpoint(endpoint) {
+                const result = document.getElementById('result');
+                const responseData = document.getElementById('response-data');
+                const warningsDiv = document.getElementById('warnings');
+                result.style.display = 'block';
+                responseData.textContent = 'Loading...';
+                warningsDiv.innerHTML = '';
+                
+                try {
+                  const response = await fetch(\`/api/vuln/api-sensitive-data?endpoint=\${endpoint}\`);
+                  const data = await response.json();
+                  responseData.textContent = JSON.stringify(data, null, 2);
+                  
+                  const warnings = highlightSensitive(data);
+                  if (warnings.length > 0) {
+                    warningsDiv.innerHTML = '<div class="warning">' + warnings.join('<br>') + '</div>';
+                  }
+                } catch (error) {
+                  responseData.textContent = 'Error: ' + error.message;
+                }
+              }
+            </script>
+          </body>
+        </html>
+      `);
+    }
+    
+    // Vulnerable: Exposing sensitive data in responses
+    switch (endpoint) {
+      case 'profile':
+        return res.json({
+          success: true,
+          flag: 'FLAG{sensitive_data_in_response}',
+          user: {
+            id: 1001,
+            username: 'john.doe',
+            email: 'john@company.com',
+            firstName: 'John',
+            lastName: 'Doe',
+            password: '$2b$10$abcdefghijklmnopqrstuvwxyz123456',  // LEAKED!
+            passwordHash: 'bcrypt$2b$10$N9qo8uLOickgx2ZMRZoMye',
+            apiToken: 'tok_live_abcdef123456789',  // LEAKED!
+            secretKey: 'sk_user_xyz789abc',  // LEAKED!
+            internalId: 'USR-2024-1001-INTERNAL',
+            ssn: '123-45-6789',  // LEAKED!
+            creditCard: {
+              number: '4532-****-****-1234',
+              fullNumber: '4532123456781234',  // LEAKED!
+              cvv: '123'  // LEAKED!
+            }
+          },
+          message: '🚨 Critical: Passwords, tokens, and PII exposed in API response!'
+        });
+        
+      case 'login-error':
+        return res.status(401).json({
+          success: false,
+          flag: 'FLAG{verbose_error_messages}',
+          error: 'Authentication failed',
+          details: {
+            username: 'admin',
+            providedPassword: 'WrongPass123',  // LEAKED!
+            actualPasswordHash: '$2b$10$hashedpasswordhere',  // LEAKED!
+            databaseQuery: 'SELECT * FROM users WHERE username = "admin" AND password = "$2b$10$hash"',  // LEAKED!
+            stackTrace: [
+              'at AuthController.login (/app/controllers/auth.js:45)',
+              'at /app/node_modules/express/lib/router/route.js:202',
+              '/var/www/html/app/database/connection.php line 156'  // LEAKED!
+            ]
+          },
+          message: 'Verbose error message exposing internal details'
+        });
+        
+      case 'config':
+        return res.json({
+          success: true,
+          flag: 'FLAG{config_endpoint_exposed}',
+          config: {
+            database: {
+              host: 'db.internal.company.com',
+              port: 5432,
+              username: 'dbadmin',  // LEAKED!
+              password: 'DbP@ssw0rd2024!',  // LEAKED!
+              database: 'production_db'
+            },
+            aws: {
+              accessKeyId: 'AKIAIOSFODNN7EXAMPLE',  // LEAKED!
+              secretAccessKey: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'  // LEAKED!
+            },
+            stripe: {
+              publicKey: 'pk_live_abc123',
+              secretKey: 'sk_live_xyz789abc123456'  // LEAKED!
+            },
+            jwtSecret: 'my-super-secret-jwt-key-dont-share',  // LEAKED!
+            encryptionKey: 'AES256-key-32-characters-long!'  // LEAKED!
+          },
+          message: '🔐 Configuration endpoint exposing all secrets!'
+        });
+        
+      case 'error':
+        return res.status(500).json({
+          success: false,
+          flag: 'FLAG{error_details_leaked}',
+          error: 'Internal Server Error',
+          exception: {
+            message: 'Database connection failed',
+            type: 'DatabaseConnectionError',
+            stackTrace: [
+              'Error: connect ECONNREFUSED 192.168.1.50:5432',
+              '    at TCPConnectWrap.afterConnect [as oncomplete] (net.js:1148:16)',
+              '    at Database.connect (/app/node_modules/pg/lib/client.js:123)',
+              '    at /var/www/html/app/config/database.js:45:12'
+            ],
+            connectionString: 'postgresql://admin:SuperSecret@192.168.1.50:5432/maindb',  // LEAKED!
+            query: 'SELECT id, username, password, api_key FROM users WHERE id = 1',  // LEAKED!
+            environment: {
+              NODE_ENV: 'production',
+              DATABASE_URL: 'postgresql://admin:password@localhost/db',  // LEAKED!
+              API_SECRET: 'api-secret-key-12345'  // LEAKED!
+            }
+          },
+          message: 'Error response leaking sensitive system information'
+        });
+        
+      default:
+        return res.status(404).json({
+          success: false,
+          message: 'Try: profile, login-error, config, error'
+        });
+    }
+  });
+
+  // 3. Predictable IDs and IDOR Lab
+  apiRouter.get('/vuln/api-predictable-ids', (req: Request, res: Response) => {
+    const { userId, invoiceId, documentId } = req.query;
+    
+    if (!userId && !invoiceId && !documentId) {
+      return res.send(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>API Security - Predictable IDs & IDOR</title>
+            <style>
+              body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #1a1a2e; color: #eee; }
+              .container { max-width: 900px; margin: 0 auto; background: #16213e; padding: 30px; border-radius: 10px; }
+              h1 { color: #00d9ff; text-align: center; margin-bottom: 30px; }
+              .form-group { margin-bottom: 20px; }
+              label { display: block; margin-bottom: 8px; color: #00d9ff; font-weight: bold; }
+              input { width: 100%; padding: 12px; background: #0f172a; border: 2px solid #334155; color: #fff; border-radius: 5px; }
+              button { background: linear-gradient(45deg, #667eea 0%, #764ba2 100%); color: white; padding: 12px 25px; border: none; border-radius: 5px; cursor: pointer; }
+              .result { background: #1e293b; padding: 15px; border-radius: 5px; margin-top: 20px; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <h1>🔢 Predictable IDs & IDOR Lab</h1>
+              <div style="background: #7f1d1d; border: 2px solid #dc2626; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+                <strong>⚠️ Beginner Lab:</strong> Exploit sequential IDs to access unauthorized data.
+              </div>
+              
+              <div style="background: #0f172a; padding: 15px; border-radius: 5px; margin: 15px 0;">
+                <h3>🎯 Mission: Enumerate and Access Other Users' Data</h3>
+                <p>Try different ID values to access data belonging to other users.</p>
+                <p><strong>Your User ID:</strong> 1001 (You're logged in as user 1001)</p>
+              </div>
+              
+              <div class="form-group">
+                <label for="userId">User Profile ID:</label>
+                <input type="number" id="userId" placeholder="Try: 1001, 1002, 1003..." />
+                <button onclick="testUser()" style="margin-top: 10px;">Get User Profile</button>
+              </div>
+              
+              <div class="form-group">
+                <label for="invoiceId">Invoice ID:</label>
+                <input type="number" id="invoiceId" placeholder="Try: 5001, 5002, 5003..." />
+                <button onclick="testInvoice()" style="margin-top: 10px;">Get Invoice</button>
+              </div>
+              
+              <div class="form-group">
+                <label for="documentId">Private Document ID:</label>
+                <input type="number" id="documentId" placeholder="Try: 9001, 9002, 9003..." />
+                <button onclick="testDocument()" style="margin-top: 10px;">Get Document</button>
+              </div>
+              
+              <div class="result" id="result" style="display:none;">
+                <h3>📊 API Response:</h3>
+                <pre id="response-data" style="background: #0f172a; padding: 15px; border-radius: 5px; overflow-x: auto;"></pre>
+              </div>
+              
+              <div style="background: #1e293b; padding: 15px; border-radius: 5px; margin-top: 20px;">
+                <h3 style="color: #fbbf24;">💡 Attack Techniques:</h3>
+                <p><strong>Manual Enumeration:</strong> Try sequential IDs: 1, 2, 3, 4, 5...</p>
+                <p><strong>Burp Intruder:</strong> Automate ID enumeration from 1 to 10000</p>
+                <p><strong>Python Script:</strong> <code>for i in range(1, 100): requests.get(f'/api?userId={i}')</code></p>
+                <p><strong>Look for:</strong> Different user data, admin accounts, sensitive documents</p>
+              </div>
+            </div>
+            
+            <script>
+              async function testUser() {
+                const userId = document.getElementById('userId').value;
+                await testEndpoint('userId=' + userId);
+              }
+              
+              async function testInvoice() {
+                const invoiceId = document.getElementById('invoiceId').value;
+                await testEndpoint('invoiceId=' + invoiceId);
+              }
+              
+              async function testDocument() {
+                const documentId = document.getElementById('documentId').value;
+                await testEndpoint('documentId=' + documentId);
+              }
+              
+              async function testEndpoint(params) {
+                const result = document.getElementById('result');
+                const responseData = document.getElementById('response-data');
+                result.style.display = 'block';
+                responseData.textContent = 'Loading...';
+                
+                try {
+                  const response = await fetch(\`/api/vuln/api-predictable-ids?\${params}\`);
+                  const data = await response.json();
+                  responseData.textContent = JSON.stringify(data, null, 2);
+                } catch (error) {
+                  responseData.textContent = 'Error: ' + error.message;
+                }
+              }
+            </script>
+          </body>
+        </html>
+      `);
+    }
+    
+    // Vulnerable: No authorization check - anyone can access any user's data!
+    if (userId) {
+      const id = parseInt(userId as string);
+      const users = [
+        { id: 1001, username: 'john.doe', email: 'john@company.com', role: 'user', salary: '$50,000' },
+        { id: 1002, username: 'jane.admin', email: 'jane@company.com', role: 'admin', salary: '$120,000', flag: 'FLAG{idor_admin_access}' },
+        { id: 1003, username: 'bob.smith', email: 'bob@company.com', role: 'user', salary: '$60,000' },
+        { id: 1004, username: 'alice.manager', email: 'alice@company.com', role: 'manager', salary: '$95,000' },
+        { id: 1005, username: 'super.admin', email: 'superadmin@company.com', role: 'superadmin', salary: '$150,000', flag: 'FLAG{idor_superadmin_found}', apiKey: 'sk_admin_xyz123' }
+      ];
+      
+      const user = users.find(u => u.id === id);
+      if (user) {
+        return res.json({
+          success: true,
+          message: id === 1001 ? 'Your profile' : '🚨 IDOR: Accessing another user\'s data!',
+          user: user,
+          vulnerability: id !== 1001 ? 'No authorization check - accessed user ' + id : undefined
+        });
+      } else {
+        return res.status(404).json({ success: false, message: 'User not found. Try IDs: 1001-1005' });
+      }
+    }
+    
+    if (invoiceId) {
+      const id = parseInt(invoiceId as string);
+      const invoices = [
+        { id: 5001, userId: 1001, amount: '$1,250.00', items: ['Web Hosting', 'SSL Certificate'] },
+        { id: 5002, userId: 1002, amount: '$5,420.00', items: ['Enterprise License', 'Support'], flag: 'FLAG{idor_invoice_access}' },
+        { id: 5003, userId: 1003, amount: '$890.00', items: ['API Credits'] },
+        { id: 5004, userId: 1004, amount: '$12,500.00', items: ['Consulting Services'], confidential: true },
+        { id: 5005, userId: 1005, amount: '$50,000.00', items: ['Government Contract'], flag: 'FLAG{idor_sensitive_invoice}', classified: 'TOP SECRET' }
+      ];
+      
+      const invoice = invoices.find(inv => inv.id === id);
+      if (invoice) {
+        return res.json({
+          success: true,
+          message: '🚨 IDOR: Accessed invoice without authorization!',
+          invoice: invoice,
+          vulnerability: 'No ownership check - anyone can view any invoice'
+        });
+      } else {
+        return res.status(404).json({ success: false, message: 'Invoice not found. Try IDs: 5001-5005' });
+      }
+    }
+    
+    if (documentId) {
+      const id = parseInt(documentId as string);
+      const documents = [
+        { id: 9001, title: 'User Manual.pdf', owner: 1001, content: 'Public documentation' },
+        { id: 9002, title: 'Salary_Report_2024.xlsx', owner: 1002, content: 'CONFIDENTIAL', flag: 'FLAG{idor_confidential_doc}', salaries: { ceo: '$500k', cto: '$350k' } },
+        { id: 9003, title: 'Company_Financials.pdf', owner: 1004, content: 'INTERNAL ONLY' },
+        { id: 9004, title: 'API_Keys_Backup.txt', owner: 1005, content: 'SECRET', flag: 'FLAG{idor_master_flag}', keys: { aws: 'AKIA...', stripe: 'sk_live_...' } },
+        { id: 9005, title: 'Customer_Database_Dump.sql', owner: 1005, content: 'HIGHLY RESTRICTED', customers: '10M records', flag: 'FLAG{idor_database_dump}' }
+      ];
+      
+      const doc = documents.find(d => d.id === id);
+      if (doc) {
+        return res.json({
+          success: true,
+          message: '🚨 CRITICAL IDOR: Accessed highly sensitive document!',
+          document: doc,
+          vulnerability: 'No access control - direct object reference vulnerability'
+        });
+      } else {
+        return res.status(404).json({ success: false, message: 'Document not found. Try IDs: 9001-9005' });
+      }
+    }
+    
+    return res.status(400).json({
+      success: false,
+      message: 'Please provide userId, invoiceId, or documentId parameter'
+    });
+  });
+
   // Create HTTP server
   const httpServer = createServer(app);
 

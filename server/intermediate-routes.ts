@@ -2103,6 +2103,315 @@ export async function registerIntermediateRoutes(app: Express): Promise<Server> 
     return res.json({ errors: [{ message: 'Query not supported' }] });
   });
 
+  // 10. SSRF via URL Fetcher Lab  
+  apiRouter.get('/vuln/ssrf', async (req: Request, res: Response) => {
+    const { url, endpoint, mode } = req.query;
+    
+    if (!url && !endpoint) {
+      return res.send(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>SSRF via URL Fetcher - Intermediate</title>
+            <style>
+              body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #1a1a2e; color: #eee; }
+              .container { max-width: 900px; margin: 0 auto; background: #16213e; padding: 30px; border-radius: 10px; }
+              h1 { color: #ff6b6b; text-align: center; margin-bottom: 30px; }
+              .form-group { margin-bottom: 20px; }
+              label { display: block; margin-bottom: 8px; color: #ff6b6b; font-weight: bold; }
+              input { width: 100%; padding: 12px; background: #0f172a; border: 2px solid #334155; color: #fff; border-radius: 5px; }
+              button { background: linear-gradient(45deg, #ff6b6b 0%, #ff8e53 100%); color: white; padding: 12px 25px; border: none; border-radius: 5px; cursor: pointer; }
+              .result { background: #1e293b; padding: 15px; border-radius: 5px; margin-top: 20px; white-space: pre-wrap; word-wrap: break-word; }
+              .warning { background: #7f1d1d; border: 2px solid #dc2626; padding: 15px; border-radius: 5px; margin: 15px 0; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <h1>🌐 SSRF via URL Fetcher - Intermediate</h1>
+              <div class="warning">
+                <strong>⚠️ Advanced Lab:</strong> Exploit Server-Side Request Forgery to access internal services, cloud metadata, and bypass network restrictions.
+              </div>
+              
+              <div style="background: #0f172a; padding: 15px; border-radius: 5px; margin: 15px 0;">
+                <h3>🎯 Mission: Access Internal Resources</h3>
+                <p>The application fetches URLs on behalf of users. Exploit this to access:</p>
+                <ul>
+                  <li>Internal network services (localhost, 127.0.0.1, 192.168.x.x)</li>
+                  <li>Cloud metadata endpoints (AWS, GCP, Azure)</li>
+                  <li>File system via file:// protocol</li>
+                  <li>Bypass IP filters using alternate encodings</li>
+                </ul>
+              </div>
+              
+              <form method="get" action="/api/vuln/ssrf">
+                <div class="form-group">
+                  <label for="url">Enter URL to Fetch:</label>
+                  <input type="text" name="url" id="url" placeholder="http://example.com" />
+                </div>
+                <button type="submit">🔍 Fetch URL</button>
+              </form>
+              
+              <div class="result" id="result" style="display:none;">
+                <h3>📊 Response:</h3>
+                <pre id="response-data" style="max-height: 400px; overflow-y: auto;"></pre>
+              </div>
+              
+              <div style="background: #1e293b; padding: 15px; border-radius: 5px; margin-top: 20px;">
+                <h3 style="color: #fbbf24;">💡 Advanced SSRF Payloads:</h3>
+                <div style="margin: 10px 0; font-family: monospace; background: #0f172a; padding: 8px; border-radius: 3px;">
+                  <strong>Localhost Access:</strong> http://localhost:5000/api/vuln/api-unauth?action=admin
+                </div>
+                <div style="margin: 10px 0; font-family: monospace; background: #0f172a; padding: 8px; border-radius: 3px;">
+                  <strong>127.0.0.1:</strong> http://127.0.0.1:5000/api/vuln/api-unauth?action=secret
+                </div>
+                <div style="margin: 10px 0; font-family: monospace; background: #0f172a; padding: 8px; border-radius: 3px;">
+                  <strong>AWS Metadata:</strong> http://169.254.169.254/latest/meta-data/
+                </div>
+                <div style="margin: 10px 0; font-family: monospace; background: #0f172a; padding: 8px; border-radius: 3px;">
+                  <strong>GCP Metadata:</strong> http://metadata.google.internal/computeMetadata/v1/
+                </div>
+                <div style="margin: 10px 0; font-family: monospace; background: #0f172a; padding: 8px; border-radius: 3px;">
+                  <strong>Azure Metadata:</strong> http://169.254.169.254/metadata/instance?api-version=2021-02-01
+                </div>
+                <div style="margin: 10px 0; font-family: monospace; background: #0f172a; padding: 8px; border-radius: 3px;">
+                  <strong>IP Encoding Bypass:</strong> http://2130706433/ (decimal for 127.0.0.1)
+                </div>
+                <div style="margin: 10px 0; font-family: monospace; background: #0f172a; padding: 8px; border-radius: 3px;">
+                  <strong>Hex Encoding:</strong> http://0x7f.0x0.0x0.0x1/
+                </div>
+                <div style="margin: 10px 0; font-family: monospace; background: #0f172a; padding: 8px; border-radius: 3px;">
+                  <strong>File Protocol:</strong> file:///etc/passwd
+                </div>
+              </div>
+            </div>
+            
+            <script>
+              // Auto-display results if present
+              if (window.location.search.includes('url=')) {
+                const result = document.getElementById('result');
+                result.style.display = 'block';
+              }
+            </script>
+          </body>
+        </html>
+      `);
+    }
+    
+    // Vulnerable SSRF implementation
+    try {
+      let targetUrl = (url || endpoint) as string;
+      
+      // Simulate weak URL validation (easily bypassed)
+      const isBlocked = targetUrl.toLowerCase().includes('metadata.google.internal') && 
+                       !targetUrl.includes('bypass=true');
+      
+      if (isBlocked) {
+        return res.json({
+          success: false,
+          error: 'URL blocked by security filter',
+          hint: 'Try IP encoding, hex encoding, or add bypass=true parameter',
+          examples: [
+            'http://169.254.169.254/ (AWS metadata)',
+            'http://0x7f.0x0.0x0.0x1/ (localhost in hex)',
+            'http://2130706433/ (localhost in decimal)',
+            'http://metadata.google.internal/?bypass=true'
+          ]
+        });
+      }
+      
+      // Check for localhost/internal network access
+      const isLocalhost = targetUrl.includes('localhost') || 
+                         targetUrl.includes('127.0.0.1') ||
+                         targetUrl.includes('0x7f') ||
+                         targetUrl.includes('2130706433');
+      
+      const isInternalIP = /192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[01])\./.test(targetUrl);
+      const isMetadata = targetUrl.includes('169.254.169.254') || 
+                        targetUrl.includes('metadata.google.internal');
+      
+      // Simulate successful SSRF attack responses
+      if (isLocalhost) {
+        return res.json({
+          success: true,
+          flag: 'FLAG{ssrf_localhost_access}',
+          url: targetUrl,
+          response: {
+            status: 200,
+            headers: {
+              'Content-Type': 'application/json',
+              'Server': 'Internal API Server'
+            },
+            body: {
+              message: '🚨 SSRF Successful! Accessed localhost internal API',
+              internalServices: [
+                'http://localhost:5000/api/vuln/api-unauth - Internal API (unprotected)',
+                'http://127.0.0.1:6379 - Redis (exposed)',
+                'http://127.0.0.1:9200 - Elasticsearch (open)',
+                'http://127.0.0.1:27017 - MongoDB (no auth)'
+              ],
+              secretData: {
+                adminToken: 'admin_token_from_internal_api',
+                dbCredentials: 'root:SuperSecretPassword123'
+              }
+            }
+          },
+          vulnerability: 'Server-Side Request Forgery - Localhost Access',
+          impact: 'Can access internal services not exposed to internet'
+        });
+      }
+      
+      if (isInternalIP) {
+        return res.json({
+          success: true,
+          flag: 'FLAG{ssrf_internal_network}',
+          url: targetUrl,
+          response: {
+            status: 200,
+            body: {
+              message: '🚨 SSRF: Accessed internal network resource!',
+              internalNetwork: {
+                discovered: true,
+                services: [
+                  '192.168.1.10 - Database Server',
+                  '192.168.1.20 - Admin Panel',
+                  '10.0.0.5 - Jenkins CI/CD'
+                ],
+                credentials: {
+                  admin: 'admin:InternalPass123',
+                  database: 'dbuser:dbpass456'
+                }
+              }
+            }
+          },
+          vulnerability: 'SSRF - Private Network Access',
+          impact: 'Can enumerate and access internal network services'
+        });
+      }
+      
+      if (isMetadata) {
+        // Simulate AWS/GCP/Azure metadata response
+        const isAWS = targetUrl.includes('169.254.169.254');
+        const isGCP = targetUrl.includes('metadata.google.internal');
+        
+        if (isAWS) {
+          return res.json({
+            success: true,
+            flag: 'FLAG{ssrf_aws_metadata_exfiltration}',
+            url: targetUrl,
+            response: {
+              status: 200,
+              headers: {
+                'Content-Type': 'text/plain',
+                'Server': 'EC2ws'
+              },
+              body: {
+                message: '🚨 CRITICAL SSRF: AWS Metadata Access!',
+                metadata: {
+                  'ami-id': 'ami-0123456789abcdef',
+                  'instance-id': 'i-0a1b2c3d4e5f6g7h8',
+                  'instance-type': 't3.large',
+                  'local-ipv4': '172.31.45.67',
+                  'iam/security-credentials/admin-role': {
+                    AccessKeyId: 'ASIA4XXXXXXXXXXXXXXX',
+                    SecretAccessKey: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
+                    Token: 'IQoJb3JpZ2luX2VjEBwaCXVzLWVhc3QtMSJIMEYCIQDe...',
+                    Expiration: '2024-12-31T23:59:59Z'
+                  }
+                },
+                user-data: '#!/bin/bash\\nAWS_ACCESS_KEY=AKIA...'
+              }
+            },
+            vulnerability: 'SSRF - AWS Metadata Service Access',
+            impact: 'Extracted IAM credentials, can compromise entire AWS account!'
+          });
+        }
+        
+        if (isGCP) {
+          return res.json({
+            success: true,
+            flag: 'FLAG{ssrf_gcp_metadata_access}',
+            url: targetUrl,
+            response: {
+              status: 200,
+              headers: {
+                'Metadata-Flavor': 'Google'
+              },
+              body: {
+                message: '🚨 CRITICAL SSRF: GCP Metadata Access!',
+                metadata: {
+                  project: {
+                    projectId: 'my-gcp-project-12345',
+                    numericProjectId: '123456789'
+                  },
+                  instance: {
+                    id: '1234567890123456789',
+                    machineType: 'n1-standard-2',
+                    name: 'production-server-1'
+                  },
+                  serviceAccounts: {
+                    default: {
+                      email: 'service-account@my-project.iam.gserviceaccount.com',
+                      token: 'ya29.c.Kl6fB-...'
+                    }
+                  }
+                }
+              }
+            },
+            vulnerability: 'SSRF - GCP Metadata Service Access',
+            impact: 'Extracted service account tokens, can access GCP resources!'
+          });
+        }
+      }
+      
+      // File protocol access
+      if (targetUrl.startsWith('file://')) {
+        return res.json({
+          success: true,
+          flag: 'FLAG{ssrf_file_protocol_access}',
+          url: targetUrl,
+          response: {
+            status: 200,
+            body: {
+              message: '🚨 SSRF: File Protocol Access!',
+              content: `root:x:0:0:root:/root:/bin/bash
+daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin
+www-data:x:33:33:www-data:/var/www:/usr/sbin/nologin
+admin:x:1000:1000:Admin User:/home/admin:/bin/bash
+# Password hash for admin: $6$rounds=656000$YrF8...`,
+              files_accessible: [
+                '/etc/passwd',
+                '/etc/shadow (if running as root)',
+                '/proc/self/environ',
+                '/var/www/html/config.php'
+              ]
+            }
+          },
+          vulnerability: 'SSRF - File Protocol Access',
+          impact: 'Can read local files including sensitive configuration'
+        });
+      }
+      
+      // Default external URL fetch
+      return res.json({
+        success: true,
+        url: targetUrl,
+        response: {
+          status: 200,
+          body: 'External URL fetched successfully. Try internal URLs for SSRF exploitation!',
+          hint: 'Try: localhost, 127.0.0.1, 169.254.169.254, internal IP ranges, file://'
+        }
+      });
+      
+    } catch (error: any) {
+      return res.status(500).json({
+        success: false,
+        error: error.message,
+        stack: error.stack,
+        vulnerability: 'Error details leaked in SSRF response'
+      });
+    }
+  });
+
   // Fallback route for SPA - serve main HTML file for any non-API route
   app.get('*', (req: Request, res: Response) => {
     res.sendFile('index-intermediate.html', { root: 'dist/intermediate/public' });

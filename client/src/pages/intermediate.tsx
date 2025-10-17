@@ -11,6 +11,7 @@ import GraphqlInjectionLab from '@/components/lab/intermediate/graphql-injection
 import WebSocketManipulationLab from '@/components/lab/intermediate/websocket-manipulation-lab';
 import RaceConditionLab from '@/components/lab/intermediate/race-condition-lab';
 import HttpHostHeaderInjectionLab from '@/components/lab/intermediate/http-host-header-injection-lab';
+import SsrfUrlFetcherLab from '@/components/lab/intermediate/ssrf-url-fetcher-lab';
 
 export default function IntermediatePage() {
   return (
@@ -23,7 +24,7 @@ export default function IntermediatePage() {
             </h1>
             <p className="text-lg md:text-xl text-gray-400 mb-6 px-4">Advanced vulnerability types and sophisticated exploitation techniques</p>
             <Badge className="bg-[#B14EFF]/20 text-[#B14EFF] border-[#B14EFF]/30 px-4 py-2 text-base md:text-lg">
-              9 Advanced Labs
+              10 Advanced Labs
             </Badge>
           </div>
 
@@ -37,6 +38,7 @@ export default function IntermediatePage() {
             <WebSocketManipulationLab />
             <RaceConditionLab />
             <HttpHostHeaderInjectionLab />
+            <SsrfUrlFetcherLab />
           </div>
         </div>
       </div>
