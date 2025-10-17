@@ -2,7 +2,7 @@
 
 ## Table of Contents
 
-### Beginner Labs (8 Labs)
+### Beginner Labs (11 Labs)
 1. [SQL Injection Lab](#sql-injection-lab)
 2. [Cross-Site Scripting (XSS) Lab](#cross-site-scripting-xss-lab)
 3. [Authentication Bypass Lab](#authentication-bypass-lab)
@@ -11,17 +11,21 @@
 6. [Access Control Lab](#access-control-lab)
 7. [Security Misconfiguration Lab](#security-misconfiguration-lab)
 8. [Command Injection Lab](#command-injection-lab)
+9. [Unauthenticated API Endpoints Lab](#unauthenticated-api-endpoints-lab)
+10. [Sensitive Data in API Responses Lab](#sensitive-data-in-api-responses-lab)
+11. [Predictable IDs & IDOR Lab](#predictable-ids--idor-lab)
 
-### Intermediate Labs (9 Labs with Bypass Techniques)
-9. [Server-Side Template Injection (SSTI) Lab](#server-side-template-injection-ssti-lab)
-10. [LDAP Injection Lab](#ldap-injection-lab)
-11. [NoSQL Injection Lab](#nosql-injection-lab)
-12. [JWT Manipulation Lab](#jwt-manipulation-lab)
-13. [Advanced CSRF Lab](#advanced-csrf-lab)
-14. [GraphQL Injection Lab](#graphql-injection-lab)
-15. [WebSocket Manipulation Lab](#websocket-manipulation-lab)
-16. [Race Condition Lab](#race-condition-lab)
-17. [HTTP Host Header Injection Lab](#http-host-header-injection-lab)
+### Intermediate Labs (10 Labs with Bypass Techniques)
+12. [Server-Side Template Injection (SSTI) Lab](#server-side-template-injection-ssti-lab)
+13. [LDAP Injection Lab](#ldap-injection-lab)
+14. [NoSQL Injection Lab](#nosql-injection-lab)
+15. [JWT Manipulation Lab](#jwt-manipulation-lab)
+16. [Advanced CSRF Lab](#advanced-csrf-lab)
+17. [GraphQL Injection Lab](#graphql-injection-lab)
+18. [WebSocket Manipulation Lab](#websocket-manipulation-lab)
+19. [Race Condition Lab](#race-condition-lab)
+20. [HTTP Host Header Injection Lab](#http-host-header-injection-lab)
+21. [SSRF via URL Fetcher Lab](#ssrf-via-url-fetcher-lab)
 
 ---
 
@@ -677,9 +681,77 @@
 
 ---
 
+### Unauthenticated API Endpoints Lab
+
+**Lab URL:** `http://localhost:5000/api/vuln/api-unauth`
+
+**Objective:** Discover and exploit APIs without authentication checks to access admin functionality, user data, and internal endpoints.
+
+**Key Exploitation Steps:**
+1. Enumerate available API actions (users, admin, debug, secret)
+2. Access user data without authentication → `FLAG{api_unauth_users_exposed}`
+3. Access admin panel and secret keys → `FLAG{unauth_admin_access_2024}`
+4. Find debug endpoints → `FLAG{debug_endpoint_exposed}`
+5. Discover secret endpoints → `FLAG{api_secret_data_leak}`
+
+**Full walkthrough:** See BEGINNER_LABS_WALKTHROUGH.md, Lab #9
+
+---
+
+### Sensitive Data in API Responses Lab
+
+**Lab URL:** `http://localhost:5000/api/vuln/api-sensitive-data`
+
+**Objective:** Analyze API responses to identify leaked credentials, passwords, configuration data, and verbose error messages.
+
+**Key Exploitation Steps:**
+1. Extract profile data with password hashes and SSN → `FLAG{api_profile_data_leak}`
+2. Trigger verbose errors exposing database queries → `FLAG{verbose_error_messages}`
+3. Access configuration endpoints with API keys → `FLAG{config_exposure_critical}`
+
+**Full walkthrough:** See BEGINNER_LABS_WALKTHROUGH.md, Lab #10
+
+---
+
+### Predictable IDs & IDOR Lab
+
+**Lab URL:** `http://localhost:5000/api/vuln/api-predictable-ids`
+
+**Objective:** Exploit sequential IDs to access unauthorized user profiles, invoices, and confidential documents (Insecure Direct Object Reference).
+
+**Key Exploitation Steps:**
+1. Enumerate users via predictable userIds (1001-1010) → `FLAG{idor_user_profile_access}`
+2. Access other users' invoices → `FLAG{idor_invoice_access}`
+3. Access confidential salary reports → `FLAG{idor_confidential_doc}`
+4. Extract API keys backup → `FLAG{idor_master_flag}`
+5. Access database dumps → `FLAG{idor_database_dump}`
+
+**Full walkthrough:** See BEGINNER_LABS_WALKTHROUGH.md, Lab #11
+
+---
+
+### SSRF via URL Fetcher Lab
+
+**Lab URL:** `http://localhost:5000/api/vuln/ssrf`
+
+**Objective:** Exploit Server-Side Request Forgery to access internal services, cloud metadata endpoints, and local files using advanced bypass techniques.
+
+**Key Exploitation Steps:**
+1. Access localhost internal APIs → `FLAG{ssrf_localhost_access}`
+2. Enumerate internal network → `FLAG{ssrf_internal_network_access}`
+3. Extract AWS IAM credentials → `FLAG{ssrf_aws_metadata_exfiltration}` ⭐
+4. Access GCP metadata → `FLAG{ssrf_gcp_metadata_access}` ⭐
+5. Access Azure metadata → `FLAG{ssrf_azure_metadata_exposed}` ⭐
+6. Bypass URL filters with IP encoding → `FLAG{ssrf_ip_encoding_bypass}` ⭐
+7. Read local files via file:// protocol → `FLAG{ssrf_file_protocol_access}` ⭐
+
+**Full walkthrough:** See INTERMEDIATE_LABS_WALKTHROUGH.md, Lab #10
+
+---
+
 ## Conclusion
 
-This comprehensive writeup covers all 17 labs (8 beginner + 9 intermediate) in the Zeroday Academy platform. Each intermediate lab includes intermediate-level bypass techniques marked with ⭐. Practice these exercises in the controlled environment to build your penetration testing skills.
+This comprehensive writeup covers all 21 labs (11 beginner + 10 intermediate) in the Zeroday Academy platform. Each intermediate lab includes intermediate-level bypass techniques marked with ⭐. Practice these exercises in the controlled environment to build your penetration testing skills.
 
 Remember to:
 1. Always use Burp Suite systematically
