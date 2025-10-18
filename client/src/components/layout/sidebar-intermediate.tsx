@@ -32,18 +32,6 @@ export default function SidebarIntermediate() {
             <div className="text-xs text-gray-400">Advanced techniques</div>
           </div>
         </Link>
-        
-        <div className="px-5 mt-6 mb-3 text-xs font-semibold text-[#00FECA] uppercase tracking-widest">RESOURCES</div>
-        <Link 
-          href="/intermediate/walkthroughs"
-          className={cn(
-            "flex items-center px-5 py-2.5 text-gray-300 hover:bg-gray-800 hover:text-white transition-colors duration-200 border-l-2 border-transparent",
-            location === "/intermediate/walkthroughs" && "bg-gray-800/50 text-white border-l-2 border-[#B14EFF]"
-          )}
-        >
-          <BookOpen className="mr-2 text-[#B14EFF]" size={18} />
-          <span className="text-sm">Intermediate Walkthroughs</span>
-        </Link>
 
       </nav>
     </aside>
