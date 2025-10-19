@@ -476,8 +476,7 @@ export async function registerIntermediateRoutes(app: Express, server: Server): 
         return res.json({
           success: true,
           message: 'Guest access',
-          user: payload,
-          hint: 'Try modifying the admin field to true, or use "none" algorithm bypass'
+          user: payload
         });
       }
     } catch (e) {
@@ -2095,8 +2094,7 @@ export async function registerIntermediateRoutes(app: Express, server: Server): 
           ]
         },
         query_executed: queryStr,
-        vulnerability: 'Unrestricted query execution',
-        hint: 'Try introspection (__schema), batching, deep nesting, or __typename'
+        vulnerability: 'Unrestricted query execution'
       });
     }
 
@@ -2208,14 +2206,7 @@ export async function registerIntermediateRoutes(app: Express, server: Server): 
       if (isBlocked) {
         return res.json({
           success: false,
-          error: 'URL blocked by security filter',
-          hint: 'Try IP encoding, hex encoding, or add bypass=true parameter',
-          examples: [
-            'http://169.254.169.254/ (AWS metadata)',
-            'http://0x7f.0x0.0x0.0x1/ (localhost in hex)',
-            'http://2130706433/ (localhost in decimal)',
-            'http://metadata.google.internal/?bypass=true'
-          ]
+          error: 'URL blocked by security filter'
         });
       }
       
@@ -2397,8 +2388,7 @@ admin:x:1000:1000:Admin User:/home/admin:/bin/bash
         url: targetUrl,
         response: {
           status: 200,
-          body: 'External URL fetched successfully. Try internal URLs for SSRF exploitation!',
-          hint: 'Try: localhost, 127.0.0.1, 169.254.169.254, internal IP ranges, file://'
+          body: 'External URL fetched successfully.'
         }
       });
       

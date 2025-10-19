@@ -1571,7 +1571,6 @@ export async function registerRoutes(app: Express, server: Server): Promise<void
       return res.status(404).json({
         success: false,
         error: `User with ID ${targetUserId} not found`,
-        hint: 'Try different user IDs like 1, 2, or 3',
         metadata: {
           timestamp: new Date().toISOString(),
           client_ip: '192.168.1.100',
@@ -1758,8 +1757,7 @@ export async function registerRoutes(app: Express, server: Server): Promise<void
           parameters: ['input', 'xml', 'data', 'file', 'payload', 'doc'],
           example: '?input=<document><item>test</item></document>',
           supported_formats: ['XML 1.0', 'XML 1.1', 'SOAP', 'XML-RPC']
-        },
-        hint: 'Try sending an XML document with a DTD (Document Type Definition)'
+        }
       });
     }
     
