@@ -40,18 +40,19 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  // Environment-driven route loading: LAB_LEVEL=intermediate for intermediate labs
-  const labLevel = process.env.LAB_LEVEL || 'beginner';
-  log(`Loading ${labLevel} labs...`);
+  // Create ONE shared HTTP server for both lab levels
+  const { createServer } = await import("http");
+  const server = createServer(app);
   
-  let server;
-  if (labLevel === 'intermediate') {
-    const { registerIntermediateRoutes } = await import("./intermediate-routes");
-    server = await registerIntermediateRoutes(app);
-  } else {
-    const { registerRoutes } = await import("./routes");
-    server = await registerRoutes(app);
-  }
+  log(`Loading all labs (beginner + intermediate)...`);
+  
+  // Import and register beginner routes (pass the shared server)
+  const { registerRoutes } = await import("./routes");
+  await registerRoutes(app, server);
+  
+  // Import and register intermediate routes (pass the shared server)
+  const { registerIntermediateRoutes } = await import("./intermediate-routes");
+  await registerIntermediateRoutes(app, server);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;

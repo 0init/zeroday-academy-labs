@@ -4,7 +4,7 @@ import { storage } from "./storage";
 import { z } from "zod";
 import { insertUserProgressSchema } from "@shared/schema";
 
-export async function registerRoutes(app: Express): Promise<Server> {
+export async function registerRoutes(app: Express, server: Server): Promise<void> {
   // Add authentication routes first
   app.get('/api/login', (req, res) => {
     res.redirect(`https://replit.com/@login?redirect=${encodeURIComponent(req.protocol + '://' + req.get('host') + '/api/callback')}`);
@@ -4672,8 +4672,5 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   });
 
-  // Create HTTP server
-  const httpServer = createServer(app);
-
-  return httpServer;
+  // Server is now passed as a parameter, no need to create or return it
 }

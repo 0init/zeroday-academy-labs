@@ -5,7 +5,7 @@ import { storage } from "./storage";
 import { z } from "zod";
 import { insertUserProgressSchema } from "@shared/schema";
 
-export async function registerIntermediateRoutes(app: Express): Promise<Server> {
+export async function registerIntermediateRoutes(app: Express, server: Server): Promise<void> {
   // Add authentication routes first
   app.get('/api/login', (req, res) => {
     res.redirect(`https://replit.com/@login?redirect=${encodeURIComponent(req.protocol + '://' + req.get('host') + '/api/callback')}`);
@@ -2412,12 +2412,9 @@ admin:x:1000:1000:Admin User:/home/admin:/bin/bash
     }
   });
 
-  // Create HTTP server
-  const httpServer = createServer(app);
-  
-  // WebSocket server for message manipulation lab
+  // WebSocket server for message manipulation lab (using passed server)
   const wss = new WebSocketServer({ 
-    server: httpServer,
+    server: server,
     path: '/ws-chat',
     // Bypass Method: Weak origin validation that can be bypassed
     verifyClient: (info) => {
@@ -2507,5 +2504,5 @@ admin:x:1000:1000:Admin User:/home/admin:/bin/bash
     });
   });
   
-  return httpServer;
+  // Server is now passed as a parameter, no need to return it
 }
