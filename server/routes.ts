@@ -1803,10 +1803,10 @@ export async function registerRoutes(app: Express, server: Server): Promise<void
 
   // Sensitive Data Exposure vulnerability - Enhanced for realistic exploitation with ID enumeration
   apiRouter.get('/vuln/data-exposure', (req: Request, res: Response) => {
-    const { userId, id, user_id } = req.query;
+    const { userId, id, user_id, uuid, fields, format, debug, export: exportType, include_sensitive } = req.query;
     
     // No parameters provided - show the lab interface
-    if (!userId && !id && !user_id) {
+    if (!userId && !id && !user_id && !uuid && !exportType) {
       return res.send(`
         <!DOCTYPE html>
         <html>
@@ -2185,43 +2185,257 @@ export async function registerRoutes(app: Express, server: Server): Promise<void
       }
     ];
 
-    // Simple ID lookup - basic enumeration vulnerability
+    // Current logged-in user (simulated - you are user 1001)
+    const currentUserId = 1001;
+    const isDebugMode = debug?.toString().toLowerCase() === 'true';
+    const requestedFormat = ((format as string) || 'json').toLowerCase();
+    const requestedFields = ((fields as string) || 'basic').toLowerCase();
+    const includeSensitive = include_sensitive?.toString().toLowerCase() === 'true';
+
+    // Helper to filter user data based on fields parameter
+    const filterUserData = (user: any, fieldsLevel: string) => {
+      switch (fieldsLevel) {
+        case 'basic':
+          return {
+            id: user.id,
+            username: user.username,
+            email: user.email,
+            role: user.role
+          };
+        case 'contact':
+          return {
+            id: user.id,
+            username: user.username,
+            email: user.email,
+            role: user.role,
+            personal_info: {
+              full_name: user.personal_info?.full_name,
+              phone: user.personal_info?.phone,
+              address: user.personal_info?.address
+            }
+          };
+        case 'sensitive':
+          return {
+            id: user.id,
+            username: user.username,
+            email: user.email,
+            role: user.role,
+            password: user.password,
+            password_hash: user.password_hash,
+            personal_info: user.personal_info,
+            payment: user.payment,
+            flag: 'FLAG{SENSITIVE_FIELDS_EXPOSED}'
+          };
+        case 'all':
+          return {
+            ...user,
+            flag: 'FLAG{FULL_DATA_DUMP_ACHIEVED}'
+          };
+        default:
+          return { id: user.id, username: user.username };
+      }
+    };
+
+    // Bulk Export handler
+    if (exportType) {
+      let exportedUsers: any[] = [];
+      let exportFlag = '';
+      
+      switch (exportType) {
+        case 'users':
+          exportedUsers = users.map(u => includeSensitive ? u : { id: u.id, username: u.username, email: u.email, role: u.role });
+          exportFlag = includeSensitive ? 'FLAG{BULK_EXPORT_WITH_SENSITIVE_DATA}' : '';
+          break;
+        case 'admins':
+          exportedUsers = users.filter(u => u.role === 'administrator' || u.role === 'manager')
+            .map(u => includeSensitive ? u : { id: u.id, username: u.username, email: u.email, role: u.role });
+          exportFlag = 'FLAG{ADMIN_USER_EXPORT}';
+          break;
+        case 'active':
+          exportedUsers = users.filter(u => u.account?.status === 'active')
+            .map(u => includeSensitive ? u : { id: u.id, username: u.username, email: u.email, role: u.role });
+          break;
+        case 'full_dump':
+          exportedUsers = users;
+          exportFlag = 'FLAG{COMPLETE_DATABASE_DUMP_CRITICAL}';
+          break;
+        default:
+          exportedUsers = [];
+      }
+      
+      return res.json({
+        success: true,
+        export_type: exportType,
+        total_records: exportedUsers.length,
+        include_sensitive: includeSensitive,
+        data: exportedUsers,
+        flag: exportFlag || undefined,
+        vulnerability: 'Bulk data export without authorization - massive data breach!',
+        metadata: {
+          timestamp: new Date().toISOString(),
+          exported_by: 'anonymous (no auth)',
+          danger: 'CRITICAL: All user data exposed without authentication!'
+        }
+      });
+    }
+
+    // UUID lookup handler
+    if (uuid) {
+      const uuidValue = uuid.toString().toLowerCase();
+      const foundByUuid = users.find(u => u.uuid.toLowerCase() === uuidValue);
+      
+      if (foundByUuid) {
+        const userData = filterUserData(foundByUuid, requestedFields);
+        const isOwnData = foundByUuid.id === currentUserId;
+        
+        return res.json({
+          success: true,
+          lookup_method: 'uuid',
+          warning: !isOwnData ? `IDOR DETECTED: You (user ${currentUserId}) accessed user ${foundByUuid.id}'s data!` : undefined,
+          user: userData,
+          flag: !isOwnData ? 'FLAG{UUID_IDOR_EXPLOITATION}' : undefined,
+          vulnerability: !isOwnData ? 'UUID enumeration allowed unauthorized data access' : undefined,
+          metadata: {
+            timestamp: new Date().toISOString(),
+            requested_uuid: uuidValue,
+            actual_owner: foundByUuid.id,
+            your_user_id: currentUserId,
+            debug_mode: isDebugMode
+          }
+        });
+      }
+      
+      return res.status(404).json({
+        success: false,
+        error: 'User with provided UUID not found',
+        hint: 'Try UUIDs like: a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+        known_uuids: isDebugMode ? users.map(u => ({ id: u.id, uuid: u.uuid })) : undefined
+      });
+    }
+
+    // Basic ID lookup with Advanced options
     const targetUserId = userId || id || user_id;
     let foundUser = null;
     
-    // Basic ID enumeration vulnerability
     if (targetUserId) {
       foundUser = users.find(u => u.id === parseInt(targetUserId.toString()));
     }
     
-    // Handle user not found
     if (!foundUser) {
       return res.status(404).json({
         success: false,
         error: `User with ID ${targetUserId} not found`,
+        hint: 'Try IDs: 1, 2, 3, 4, 5, or 1001',
+        debug_info: isDebugMode ? {
+          available_ids: users.map(u => u.id),
+          tip: 'In debug mode, all available IDs are exposed!'
+        } : undefined,
         metadata: {
           timestamp: new Date().toISOString(),
           client_ip: '192.168.1.100',
-          requested_user_id: targetUserId,
-          vulnerability: 'sensitive_data_exposure'
+          requested_user_id: targetUserId
         }
       });
     }
+
+    const isOwnData = foundUser.id === currentUserId;
+    const userData = filterUserData(foundUser, requestedFields);
     
-    // Return full user data (vulnerability: no proper access control)
+    // Helper to convert object to XML recursively
+    const objectToXml = (obj: any, indent: string = '  '): string => {
+      let xml = '';
+      for (const [key, value] of Object.entries(obj)) {
+        if (value === null || value === undefined) continue;
+        if (typeof value === 'object' && !Array.isArray(value)) {
+          xml += `${indent}<${key}>\n${objectToXml(value, indent + '  ')}${indent}</${key}>\n`;
+        } else if (Array.isArray(value)) {
+          xml += `${indent}<${key}>\n`;
+          value.forEach((item, i) => {
+            if (typeof item === 'object') {
+              xml += `${indent}  <item index="${i}">\n${objectToXml(item, indent + '    ')}${indent}  </item>\n`;
+            } else {
+              xml += `${indent}  <item>${item}</item>\n`;
+            }
+          });
+          xml += `${indent}</${key}>\n`;
+        } else {
+          xml += `${indent}<${key}>${value}</${key}>\n`;
+        }
+      }
+      return xml;
+    };
+
+    // Format response based on requested format
+    if (requestedFormat === 'xml') {
+      const xmlData = `<?xml version="1.0" encoding="UTF-8"?>
+<response>
+  <success>true</success>
+  <warning>${!isOwnData ? `IDOR: You accessed user ${foundUser.id}'s data!` : ''}</warning>
+  <your_user_id>${currentUserId}</your_user_id>
+  <accessed_user_id>${foundUser.id}</accessed_user_id>
+  <user>
+${objectToXml(userData, '    ')}  </user>
+  <flag>${!isOwnData ? 'FLAG{XML_FORMAT_IDOR}' : ''}</flag>
+  <vulnerability>${!isOwnData ? 'IDOR via XML format export' : ''}</vulnerability>
+</response>`;
+      res.setHeader('Content-Type', 'application/xml');
+      return res.send(xmlData);
+    }
+    
+    if (requestedFormat === 'csv') {
+      // Build CSV with all available fields
+      const flattenObject = (obj: any, prefix: string = ''): Record<string, string> => {
+        const result: Record<string, string> = {};
+        for (const [key, value] of Object.entries(obj)) {
+          const newKey = prefix ? `${prefix}_${key}` : key;
+          if (value && typeof value === 'object' && !Array.isArray(value)) {
+            Object.assign(result, flattenObject(value, newKey));
+          } else if (Array.isArray(value)) {
+            result[newKey] = value.map(v => typeof v === 'object' ? JSON.stringify(v) : v).join(';');
+          } else {
+            result[newKey] = String(value ?? '');
+          }
+        }
+        return result;
+      };
+      
+      const flatData = flattenObject(userData);
+      flatData['flag'] = !isOwnData ? 'FLAG{CSV_DATA_EXPORT}' : '';
+      flatData['idor_warning'] = !isOwnData ? `Accessed user ${foundUser.id} data` : '';
+      
+      const headers = Object.keys(flatData).join(',');
+      const values = Object.values(flatData).map(v => `"${String(v).replace(/"/g, '""')}"`).join(',');
+      
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', 'attachment; filename="user_export.csv"');
+      return res.send(`${headers}\n${values}`);
+    }
+
+    // Default JSON response
     return res.json({
       success: true,
-      user: foundUser,
+      warning: !isOwnData ? `IDOR DETECTED: You (user ${currentUserId}) accessed user ${foundUser.id}'s private data!` : undefined,
+      your_user_id: currentUserId,
+      accessed_user_id: foundUser.id,
+      is_own_data: isOwnData,
+      user: userData,
+      flag: !isOwnData ? (requestedFields === 'all' ? 'FLAG{FULL_IDOR_EXPLOITATION}' : 'FLAG{BASIC_IDOR_SUCCESS}') : undefined,
+      vulnerability: !isOwnData ? 'No authorization check - accessed another user\'s data via predictable ID' : undefined,
       lookup_method: 'id',
       metadata: {
         timestamp: new Date().toISOString(),
         client_ip: '192.168.1.100',
         requested_user_id: targetUserId,
-        requested_format: 'json',
+        requested_fields: requestedFields,
+        requested_format: requestedFormat,
         authenticated: false,
-        authorization_header: 'None provided',
-        vulnerability: 'sensitive_data_exposure',
-        debug_mode: false
+        debug_mode: isDebugMode,
+        debug_info: isDebugMode ? {
+          all_user_ids: users.map(u => u.id),
+          all_uuids: users.map(u => ({ id: u.id, uuid: u.uuid })),
+          database_connection: 'postgresql://admin:password@localhost/users_db',
+          internal_note: 'Debug mode exposes sensitive system information!'
+        } : undefined
       }
     });
   });
@@ -3439,50 +3653,202 @@ export async function registerRoutes(app: Express, server: Server): Promise<void
         pingOutput = `PING ${ip} (${ip}): 56 data bytes\n64 bytes from ${ip}: icmp_seq=0 ttl=64 time=1.291 ms\n`;
       }
       
-      // Simulate command output for common commands
+      // Enhanced command simulation engine - generates realistic output for any command
       commandExecuted = true;
       const commandOutputs = [];
       
-      for (const cmd of injectedCommands) {
-        if (cmd.includes('ls') || cmd.includes('dir')) {
-          commandOutputs.push('app/\nconfig/\nlogs/\nwww/\nindex.php\nconfig.php\n.env\n.htaccess');
-        } else if (cmd.includes('pwd') || cmd.includes('cd')) {
-          commandOutputs.push('/var/www/html');
-        } else if (cmd.includes('whoami')) {
-          commandOutputs.push('www-data');
-        } else if (cmd.includes('id')) {
-          commandOutputs.push('uid=33(www-data) gid=33(www-data) groups=33(www-data)');
-        } else if (cmd.includes('cat') || cmd.includes('type')) {
-          if (cmd.includes('passwd') || cmd.includes('/etc/passwd')) {
-            commandOutputs.push('root:x:0:0:root:/root:/bin/bash\ndaemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin\nbin:x:2:2:bin:/bin:/usr/sbin/nologin\nwww-data:x:33:33:www-data:/var/www:/usr/sbin/nologin\n...');
-          } else if (cmd.includes('shadow') || cmd.includes('/etc/shadow')) {
-            commandOutputs.push('root:$6$xyz$lrAw.xh7ZW7dLdqJ3dMnZY:18439:0:99999:7:::\ndaemon:*:18439:0:99999:7:::\nbin:*:18439:0:99999:7:::\n...');
-          } else if (cmd.includes('hosts') || cmd.includes('/etc/hosts')) {
-            commandOutputs.push('127.0.0.1 localhost\n127.0.1.1 webapp\n10.0.2.15 internal-service\n192.168.1.10 database\n...');
-          } else if (cmd.includes('.env') || cmd.includes('config')) {
-            commandOutputs.push('DB_HOST=localhost\nDB_USER=app_user\nDB_PASS=Secret123!\nAPI_KEY=a1b2c3d4e5f6g7h8i9j0\nJWT_SECRET=5up3r53cr3tk3y');
-          } else {
-            commandOutputs.push('[File contents would be displayed here]');
+      // Comprehensive command output registry
+      const generateCommandOutput = (cmd: string): string => {
+        const cmdLower = cmd.toLowerCase().trim();
+        const cmdParts = cmdLower.split(/\s+/);
+        const baseCmd = cmdParts[0];
+        
+        // File system commands
+        if (baseCmd === 'ls' || baseCmd === 'dir') {
+          if (cmdLower.includes('-la') || cmdLower.includes('-al')) {
+            return `total 48
+drwxr-xr-x  6 www-data www-data 4096 Dec 16 10:23 .
+drwxr-xr-x  3 root     root     4096 Dec 16 08:00 ..
+-rw-r--r--  1 www-data www-data  256 Dec 16 09:15 .env
+-rw-r--r--  1 www-data www-data  128 Dec 16 09:15 .htaccess
+drwxr-xr-x  2 www-data www-data 4096 Dec 16 10:23 app
+-rw-r--r--  1 www-data www-data 2048 Dec 16 10:20 config.php
+drwxr-xr-x  2 www-data www-data 4096 Dec 16 08:30 config
+-rw-r--r--  1 www-data www-data 8192 Dec 16 10:22 index.php
+drwxr-xr-x  2 www-data www-data 4096 Dec 16 09:00 logs
+drwxr-xr-x  4 www-data www-data 4096 Dec 16 10:15 www`;
           }
-        } else if (cmd.includes('find')) {
-          commandOutputs.push('/var/www/html/config.php\n/var/www/html/includes/db.php\n/var/www/html/admin/config.bak\n/var/www/html/.env\n...');
-        } else if (cmd.includes('grep')) {
-          if (cmd.includes('password') || cmd.includes('pass') || cmd.includes('key')) {
-            commandOutputs.push('config.php:$password = "db_password_123";\n.env:DB_PASS=Secret123!\n.env:JWT_SECRET=5up3r53cr3tk3y');
-          } else {
-            commandOutputs.push('[Grep results would be displayed here]');
-          }
-        } else if (cmd.includes('ifconfig') || cmd.includes('ipconfig')) {
-          commandOutputs.push('eth0: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500\n        inet 10.0.2.15  netmask 255.255.255.0  broadcast 10.0.2.255\n        inet6 fe80::215:5dff:fe00:101  prefixlen 64  scopeid 0x20<link>\n        ether 00:15:5d:00:01:01  txqueuelen 1000  (Ethernet)');
-        } else if (cmd.includes('netstat')) {
-          commandOutputs.push('Active Internet connections (only servers)\nProto Recv-Q Send-Q Local Address           Foreign Address         State\ntcp        0      0 0.0.0.0:80              0.0.0.0:*               LISTEN\ntcp        0      0 0.0.0.0:22              0.0.0.0:*               LISTEN\ntcp        0      0 127.0.0.1:3306          0.0.0.0:*               LISTEN');
-        } else if (cmd.includes('uname')) {
-          commandOutputs.push('Linux webapp 5.4.0-42-generic #46-Ubuntu SMP Fri Jul 10 00:24:02 UTC 2020 x86_64 x86_64 x86_64 GNU/Linux');
-        } else if (cmd.includes('ps')) {
-          commandOutputs.push('  PID TTY          TIME CMD\n  453 ?        00:00:10 apache2\n  479 ?        00:00:03 mysql\n  501 ?        00:00:01 sshd\n  780 ?        00:00:00 bash\n  901 ?        00:00:00 ping\n  902 ?        00:00:00 ps');
-        } else {
-          commandOutputs.push(`[Output from '${cmd}' would be displayed here]`);
+          return 'app  config  config.php  index.php  logs  www  .env  .htaccess';
         }
+        
+        if (baseCmd === 'pwd') return '/var/www/html';
+        if (baseCmd === 'whoami') return 'www-data';
+        if (baseCmd === 'id') return 'uid=33(www-data) gid=33(www-data) groups=33(www-data)';
+        if (baseCmd === 'hostname') return 'webapp-prod-01';
+        if (baseCmd === 'date') return new Date().toString();
+        if (baseCmd === 'uptime') return ' 10:23:45 up 127 days,  3:42,  2 users,  load average: 0.15, 0.10, 0.05';
+        if (baseCmd === 'arch') return 'x86_64';
+        if (baseCmd === 'echo') return cmdParts.slice(1).join(' ').replace(/['"]/g, '');
+        if (baseCmd === 'env') return `PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+HOME=/var/www
+USER=www-data
+SHELL=/bin/bash
+PWD=/var/www/html
+DB_HOST=localhost
+DB_USER=app_user
+DB_PASS=Secret123!
+API_KEY=sk_live_a1b2c3d4e5f6g7h8
+JWT_SECRET=5up3r53cr3tk3y-do-not-share
+FLAG=FLAG{ENV_VARIABLES_EXPOSED}`;
+        
+        // User/system info
+        if (baseCmd === 'uname') {
+          if (cmdLower.includes('-a')) return 'Linux webapp-prod-01 5.4.0-42-generic #46-Ubuntu SMP Fri Jul 10 00:24:02 UTC 2020 x86_64 x86_64 x86_64 GNU/Linux';
+          return 'Linux';
+        }
+        
+        // Cat command - file reading
+        if (baseCmd === 'cat' || baseCmd === 'head' || baseCmd === 'tail' || baseCmd === 'less' || baseCmd === 'more') {
+          if (cmdLower.includes('/etc/passwd')) return `root:x:0:0:root:/root:/bin/bash
+daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin
+bin:x:2:2:bin:/bin:/usr/sbin/nologin
+sys:x:3:3:sys:/dev:/usr/sbin/nologin
+www-data:x:33:33:www-data:/var/www:/usr/sbin/nologin
+mysql:x:27:27:MySQL Server:/var/lib/mysql:/bin/false
+sshd:x:74:74:Privilege-separated SSH:/var/empty/sshd:/sbin/nologin
+admin:x:1000:1000:Admin User:/home/admin:/bin/bash`;
+          if (cmdLower.includes('/etc/shadow')) return `root:$6$rounds=5000$salt$hashedpassword123:18439:0:99999:7:::
+daemon:*:18439:0:99999:7:::
+www-data:$6$abc$xyzHashedPwd456:18500:0:99999:7:::
+admin:$6$def$AdminHashedPwd789:18501:0:99999:7:::
+FLAG: FLAG{SHADOW_FILE_ACCESS}`;
+          if (cmdLower.includes('/etc/hosts')) return `127.0.0.1 localhost
+127.0.1.1 webapp-prod-01
+10.0.2.15 internal-api.corp.local
+192.168.1.10 database.corp.local
+192.168.1.20 redis.corp.local
+172.16.0.5 admin-panel.internal`;
+          if (cmdLower.includes('.env')) return `# Application Configuration
+APP_ENV=production
+APP_DEBUG=false
+APP_KEY=base64:a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6
+
+# Database
+DB_CONNECTION=mysql
+DB_HOST=192.168.1.10
+DB_PORT=3306
+DB_DATABASE=webapp_prod
+DB_USERNAME=webapp_user
+DB_PASSWORD=Pr0d_P@ssw0rd_2024!
+
+# API Keys
+STRIPE_SECRET=sk_live_abc123xyz789
+AWS_ACCESS_KEY=AKIAIOSFODNN7EXAMPLE
+AWS_SECRET_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+
+FLAG=FLAG{ENV_FILE_LEAKED}`;
+          if (cmdLower.includes('config') || cmdLower.includes('.php')) return `<?php
+// Database Configuration
+define('DB_HOST', 'localhost');
+define('DB_USER', 'webapp_user');
+define('DB_PASS', 'SuperSecretDBPassword!');
+define('DB_NAME', 'webapp_production');
+
+// API Keys
+define('API_SECRET', 'api_secret_key_12345');
+define('JWT_KEY', 'jwt_signing_key_67890');
+
+// FLAG: FLAG{CONFIG_FILE_EXPOSED}
+?>`;
+          if (cmdLower.includes('/etc/issue')) return 'Ubuntu 20.04.2 LTS \\n \\l';
+          return `[Contents of requested file]`;
+        }
+        
+        // Network commands
+        if (baseCmd === 'ifconfig' || baseCmd === 'ip') return `eth0: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
+        inet 10.0.2.15  netmask 255.255.255.0  broadcast 10.0.2.255
+        inet6 fe80::215:5dff:fe00:101  prefixlen 64  scopeid 0x20<link>
+        ether 00:15:5d:00:01:01  txqueuelen 1000  (Ethernet)
+        RX packets 1234567  bytes 987654321 (987.6 MB)
+        TX packets 654321  bytes 123456789 (123.4 MB)
+
+lo: flags=73<UP,LOOPBACK,RUNNING>  mtu 65536
+        inet 127.0.0.1  netmask 255.0.0.0
+        inet6 ::1  prefixlen 128  scopeid 0x10<host>`;
+        
+        if (baseCmd === 'netstat' || baseCmd === 'ss') return `Active Internet connections (servers and established)
+Proto Recv-Q Send-Q Local Address           Foreign Address         State
+tcp        0      0 0.0.0.0:80              0.0.0.0:*               LISTEN
+tcp        0      0 0.0.0.0:443             0.0.0.0:*               LISTEN
+tcp        0      0 0.0.0.0:22              0.0.0.0:*               LISTEN
+tcp        0      0 127.0.0.1:3306          0.0.0.0:*               LISTEN
+tcp        0      0 127.0.0.1:6379          0.0.0.0:*               LISTEN
+tcp        0    216 10.0.2.15:80            203.0.113.42:54321      ESTABLISHED`;
+        
+        if (baseCmd === 'curl' || baseCmd === 'wget') return `HTTP/1.1 200 OK
+Server: nginx/1.18.0
+Content-Type: application/json
+{"status":"ok","internal_api":true,"flag":"FLAG{SSRF_INTERNAL_ACCESS}"}`;
+        
+        // Process commands
+        if (baseCmd === 'ps') return `  PID TTY      STAT   TIME COMMAND
+    1 ?        Ss     0:05 /sbin/init
+  453 ?        Ss     0:10 /usr/sbin/apache2 -k start
+  454 ?        S      0:03 /usr/sbin/apache2 -k start
+  479 ?        Ssl    0:08 /usr/sbin/mysqld
+  501 ?        Ss     0:01 /usr/sbin/sshd -D
+  780 pts/0    S      0:00 bash
+  901 pts/0    S+     0:00 ping 127.0.0.1
+ 1024 pts/0    R+     0:00 ps aux`;
+        
+        if (baseCmd === 'top') return `top - 10:23:45 up 127 days,  3:42,  2 users,  load average: 0.15, 0.10, 0.05
+Tasks: 128 total,   1 running, 127 sleeping,   0 stopped,   0 zombie
+%Cpu(s):  2.3 us,  1.0 sy,  0.0 ni, 96.5 id,  0.2 wa,  0.0 hi,  0.0 si
+MiB Mem :   8192.0 total,   2048.0 free,   4096.0 used,   2048.0 buff/cache`;
+        
+        // Find/grep
+        if (baseCmd === 'find') return `/var/www/html/config.php
+/var/www/html/.env
+/var/www/html/includes/db.php
+/var/www/html/admin/config.bak
+/var/www/html/backup/database.sql
+/home/admin/.ssh/id_rsa
+/etc/nginx/nginx.conf`;
+        
+        if (baseCmd === 'grep') return `config.php:define('DB_PASS', 'SuperSecretDBPassword!');
+.env:DB_PASSWORD=Pr0d_P@ssw0rd_2024!
+.env:API_SECRET=sk_live_abc123xyz789
+includes/db.php:$password = "backup_db_pass_123";
+FLAG: FLAG{SENSITIVE_DATA_GREP}`;
+        
+        // Misc commands
+        if (baseCmd === 'which') return `/usr/bin/${cmdParts[1] || 'bash'}`;
+        if (baseCmd === 'touch' || baseCmd === 'mkdir' || baseCmd === 'rm' || baseCmd === 'mv' || baseCmd === 'cp') return '';
+        if (baseCmd === 'history') return `  1  cd /var/www/html
+  2  ls -la
+  3  cat .env
+  4  mysql -u root -pSecretRootPass
+  5  ssh admin@192.168.1.10
+  6  curl http://internal-api:8080/admin
+  7  FLAG: FLAG{COMMAND_HISTORY_EXPOSED}`;
+        
+        if (baseCmd === 'crontab') return `# m h dom mon dow command
+*/5 * * * * /var/www/html/scripts/backup.sh
+0 2 * * * /usr/bin/mysqldump -u root -pSecretPass > /backup/db.sql
+FLAG: FLAG{CRON_SECRETS_FOUND}`;
+        
+        if (baseCmd === 'printenv' || baseCmd === 'set') return generateCommandOutput('env');
+        
+        // Default: generate realistic "command not found" or generic output
+        if (['nc', 'ncat', 'netcat'].includes(baseCmd)) return `Connection to target established. FLAG: FLAG{REVERSE_SHELL_POSSIBLE}`;
+        if (baseCmd === 'python' || baseCmd === 'python3' || baseCmd === 'perl' || baseCmd === 'ruby') return `[Script execution output]`;
+        if (baseCmd === 'wget' || baseCmd === 'curl') return `[Downloaded content]`;
+        
+        return `${baseCmd}: command executed successfully`;
+      };
+      
+      for (const cmd of injectedCommands) {
+        commandOutputs.push(generateCommandOutput(cmd));
       }
       
       // Combine output
@@ -3516,10 +3882,19 @@ export async function registerRoutes(app: Express, server: Server): Promise<void
     if (commandExecuted) {
       response.command_injection = {
         detected: true,
-        original_command: `ping -c 3 ${targetAddress.split(/[^\w.-]/)[0]}`,
+        original_command: `ping -c 3 ${targetAddress.split(/[;\|&\$`]/)[0].trim()}`,
+        injected_payload: targetAddress,
+        parsed_commands: injectedCommands,
+        execution_trace: injectedCommands.map((cmd, i) => ({
+          order: i + 1,
+          command: cmd.trim(),
+          exit_code: 0,
+          duration_ms: Math.floor(Math.random() * 50) + 5
+        })),
         warning: 'Command injection vulnerability exploited!',
-        flag: '{COMMAND_INJECTION_SUCCESSFUL}'
+        flag: 'FLAG{COMMAND_INJECTION_SUCCESSFUL}'
       };
+      response.success = true;
     }
     
     if (systemInfo) {
