@@ -122,7 +122,7 @@ export async function registerRoutes(app: Express, server: Server): Promise<void
   
   // Enhanced SQL Injection vulnerability - Enterprise Banking Application
   apiRouter.get('/vuln/sqli', async (req: Request, res: Response) => {
-    const { input, id, search, login, type, username, mode } = req.query;
+    const { input, id, search, login, type, username, password, mode, technique } = req.query;
     const userAgent = req.get('User-Agent') || '';
     const startTime = Date.now();
     const isHardMode = mode === 'hard';
@@ -144,6 +144,180 @@ export async function registerRoutes(app: Express, server: Server): Promise<void
             hint: 'Try bypass techniques: case manipulation, URL encoding, comment injection, or alternative syntax'
           });
         }
+      }
+    }
+
+    // Handle technique-specific API calls from React component
+    if (technique) {
+      const queryTime = Date.now() - startTime;
+      
+      // AUTH BYPASS - Real login simulation
+      if (technique === 'auth') {
+        const user = username?.toString() || '';
+        const pass = password?.toString() || '';
+        
+        // Simulate vulnerable SQL query: SELECT * FROM users WHERE username='X' AND password='Y'
+        // Check for SQL injection patterns that bypass auth
+        const isInjected = (
+          user.includes("'--") ||
+          user.includes("' --") ||
+          user.includes("'#") ||
+          user.includes("' OR ") ||
+          user.toLowerCase().includes("' or '1'='1") ||
+          pass.toLowerCase().includes("' or '1'='1") ||
+          user.includes("' OR 1=1") ||
+          user.includes("admin'--")
+        );
+        
+        if (isInjected) {
+          return res.json({
+            success: true,
+            authenticated: true,
+            flag: 'FLAG{AUTH_BYPASS_SUCCESS}',
+            message: 'Login successful! Welcome, Administrator.',
+            data: [{ username: 'admin', role: 'administrator', email: 'admin@securebank.com' }],
+            queryTime
+          });
+        } else {
+          // Check for valid credentials (mock)
+          if (user === 'admin' && pass === 'supersecret123') {
+            return res.json({
+              success: true,
+              authenticated: true,
+              message: 'Login successful!',
+              data: [{ username: 'admin', role: 'administrator' }],
+              queryTime
+            });
+          }
+          return res.json({
+            success: false,
+            authenticated: false,
+            message: 'Invalid credentials. Try SQL injection to bypass!',
+            hint: 'The query is: SELECT * FROM users WHERE username=\'X\' AND password=\'Y\'',
+            queryTime
+          });
+        }
+      }
+      
+      // ERROR-BASED - Trigger SQL errors
+      if (technique === 'error') {
+        const idVal = id?.toString() || '';
+        
+        if (idVal.includes("'") && !idVal.includes("--")) {
+          return res.json({
+            success: false,
+            error: true,
+            message: `ERROR 1064 (42000): You have an error in your SQL syntax near '${idVal}'`,
+            details: `Vulnerable Query: SELECT * FROM users WHERE id = '${idVal}'`,
+            flag: 'FLAG{ERROR_BASED_SQLI_DETECTED}',
+            queryTime
+          });
+        }
+        
+        // Normal lookup
+        const numId = parseInt(idVal);
+        if (!isNaN(numId) && numId >= 1 && numId <= 5) {
+          const mockUsers = [
+            { id: 1, username: 'admin', email: 'admin@securebank.com', role: 'administrator' },
+            { id: 2, username: 'john', email: 'john@securebank.com', role: 'user' },
+            { id: 3, username: 'alice', email: 'alice@securebank.com', role: 'user' },
+            { id: 4, username: 'bob', email: 'bob@securebank.com', role: 'user' },
+            { id: 5, username: 'manager', email: 'manager@securebank.com', role: 'manager' }
+          ];
+          return res.json({
+            success: true,
+            data: [mockUsers[numId - 1]],
+            message: `Found user with ID ${numId}`,
+            queryTime
+          });
+        }
+        
+        return res.json({
+          success: true,
+          data: [],
+          message: 'No user found with that ID',
+          queryTime
+        });
+      }
+      
+      // UNION-BASED - Extract data from other tables
+      if (technique === 'union') {
+        const searchVal = search?.toString() || '';
+        
+        if (searchVal.toLowerCase().includes('union select')) {
+          // Check what's being extracted
+          if (searchVal.toLowerCase().includes('credit_cards') || searchVal.toLowerCase().includes('card_number')) {
+            return res.json({
+              success: true,
+              flag: 'FLAG{UNION_SQLI_CREDIT_CARDS}',
+              data: [
+                { card_number: '4111-1111-1111-1111', cvv: '123', expiry: '01/25', card_holder: 'John Doe' },
+                { card_number: '5500-0000-0000-0004', cvv: '456', expiry: '03/24', card_holder: 'Alice Smith' },
+                { card_number: '3700-0000-0000-002', cvv: '789', expiry: '12/23', card_holder: 'Admin User' }
+              ],
+              message: 'Extracted credit card data via UNION injection!',
+              queryTime
+            });
+          }
+          
+          if (searchVal.toLowerCase().includes('password') || searchVal.toLowerCase().includes('users')) {
+            return res.json({
+              success: true,
+              flag: 'FLAG{UNION_SQLI_USER_CREDS}',
+              data: [
+                { username: 'admin', password_hash: '$2a$10$XgXRWyYlt5VAYT2qOsRU/e5TBGzKaJkW0TzlnQwUqosZWzN0d.Ute', role: 'administrator', email: 'admin@securebank.com' },
+                { username: 'john', password_hash: '$2a$10$KgpT9jMQNrZRySnHlJL2O.xfEzvaHJep.CdcfQcdJVUiVE8m5bfpW', role: 'user', email: 'john@securebank.com' },
+                { username: 'alice', password_hash: '$2a$10$e/s8jFiN4UpFrZdX0uJOj.C1cTg/SaOCDorjyLN9qYN9X5rUzwgx6', role: 'user', email: 'alice@securebank.com' }
+              ],
+              message: 'Extracted user credentials via UNION injection!',
+              queryTime
+            });
+          }
+          
+          return res.json({
+            success: true,
+            flag: 'FLAG{UNION_SQLI_BASIC}',
+            data: [{ extracted: 'Data successfully extracted via UNION' }],
+            message: 'UNION injection successful! Try extracting from users or credit_cards tables.',
+            queryTime
+          });
+        }
+        
+        // Normal search
+        return res.json({
+          success: true,
+          data: [
+            { product: 'Savings Account', description: 'High-yield savings' },
+            { product: 'Premium Credit Card', description: 'Cashback rewards' }
+          ],
+          message: 'Search results for: ' + searchVal,
+          queryTime
+        });
+      }
+      
+      // BLIND SQLi - Time-based
+      if (technique === 'blind') {
+        const idVal = id?.toString() || '';
+        
+        if (idVal.toLowerCase().includes('sleep') || idVal.toLowerCase().includes('benchmark')) {
+          const sleepMatch = idVal.toLowerCase().match(/sleep\((\d+)\)/);
+          const delay = sleepMatch ? parseInt(sleepMatch[1]) * 1000 : 3000;
+          
+          await new Promise(resolve => setTimeout(resolve, Math.min(delay, 10000)));
+          
+          return res.json({
+            success: true,
+            message: 'Account verification complete',
+            flag: 'FLAG{BLIND_SQLI_TIME_BASED}',
+            queryTime: Date.now() - startTime
+          });
+        }
+        
+        return res.json({
+          success: true,
+          message: 'Account ID verified',
+          queryTime
+        });
       }
     }
 
