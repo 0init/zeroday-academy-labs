@@ -1297,8 +1297,143 @@ export async function registerRoutes(app: Express, server: Server): Promise<void
 
   // Broken Authentication vulnerability - Enhanced for realistic exploitation
   apiRouter.get('/vuln/auth', (req: Request, res: Response) => {
-    const { username, password, user, pass, u, p, login, account, mode } = req.query;
+    const { username, password, user, pass, u, p, login, account, mode, technique, user_id, role } = req.query;
     const isHardMode = mode === 'hard';
+    
+    // Handle technique-specific requests from the React frontend
+    if (technique) {
+      const techniqueType = technique.toString().toLowerCase();
+      
+      // Session Manipulation technique - creates session with user-supplied role (vulnerability!)
+      if (techniqueType === 'session') {
+        const requestedRole = (role || 'guest').toString();
+        const requestedUserId = (user_id || '1').toString();
+        
+        // Vulnerability: Server blindly trusts user-supplied role!
+        const isPrivileged = ['admin', 'administrator', 'root', 'superuser'].includes(requestedRole.toLowerCase());
+        const sessionId = 'sess_' + Math.random().toString(36).substring(2, 15);
+        const expiresAt = new Date(Date.now() + 86400000).toISOString();
+        
+        return res.json({
+          success: true,
+          message: isPrivileged 
+            ? 'Session created with ELEVATED privileges!' 
+            : 'Session created successfully',
+          session: {
+            id: sessionId,
+            user_id: requestedUserId,
+            role: requestedRole,
+            expires: expiresAt
+          },
+          user: {
+            id: parseInt(requestedUserId) || 1,
+            username: isPrivileged ? 'admin' : 'user_' + requestedUserId,
+            firstName: isPrivileged ? 'Administrator' : 'User',
+            lastName: requestedUserId,
+            role: requestedRole,
+            email: isPrivileged ? 'admin@corp.local' : `user${requestedUserId}@corp.local`
+          },
+          flag: isPrivileged ? 'FLAG{SESSION_MANIPULATION_SUCCESS}' : undefined,
+          vulnerability: 'Mass Assignment - server accepts role parameter without authorization check'
+        });
+      }
+      
+      // Default credentials technique
+      if (techniqueType === 'default_creds') {
+        const userValue = (username || '').toString();
+        const passValue = (password || '').toString();
+        
+        const defaultCreds = [
+          { username: 'admin', password: 'admin123', role: 'administrator', userId: 1 },
+          { username: 'admin', password: 'admin', role: 'administrator', userId: 1 },
+          { username: 'root', password: 'root', role: 'administrator', userId: 1 },
+          { username: 'guest', password: 'guest', role: 'guest', userId: 4 },
+          { username: 'john', password: 'Password123', role: 'user', userId: 2 },
+          { username: 'alice', password: 'Secure@456', role: 'user', userId: 3 }
+        ];
+        
+        const matched = defaultCreds.find(c => c.username === userValue && c.password === passValue);
+        
+        if (matched) {
+          return res.json({
+            success: true,
+            message: 'Login successful with default credentials!',
+            user: {
+              id: matched.userId,
+              username: matched.username,
+              firstName: matched.username.charAt(0).toUpperCase() + matched.username.slice(1),
+              lastName: 'User',
+              role: matched.role,
+              email: `${matched.username}@corp.local`
+            },
+            flag: matched.role === 'administrator' ? 'FLAG{DEFAULT_CREDS_ADMIN_ACCESS}' : undefined,
+            vulnerability: 'Default credentials not changed after deployment'
+          });
+        }
+        
+        // Check if username exists for enumeration
+        const userExists = defaultCreds.some(c => c.username === userValue);
+        return res.json({
+          success: false,
+          message: userExists 
+            ? `Invalid password for user '${userValue}'` 
+            : `User '${userValue}' not found in system`,
+          vulnerability: 'Username enumeration via different error messages'
+        });
+      }
+      
+      // SQLi technique - handle SQL injection bypass
+      if (techniqueType === 'sqli') {
+        const userValue = (username || '').toString();
+        const passValue = (password || '').toString();
+        
+        // Check for SQL injection patterns
+        const sqlInjectionPatterns = [
+          "' OR '1'='1", "'OR 1=1--", "' OR 1=1--", "1' OR '1'='1",
+          "admin' --", "admin'--", "admin'/*", "'/*", "' OR '", "OR 1=1", ";--", "UNION", "' OR 1=1=1 --",
+          "1=1", "TRUE", "'='", "' OR ''='", "admin' #", "' #", "admin'#"
+        ];
+        
+        const hasSqlInjection = sqlInjectionPatterns.some(pattern => 
+          userValue.toLowerCase().includes(pattern.toLowerCase()) || 
+          passValue.toLowerCase().includes(pattern.toLowerCase())
+        );
+        
+        if (hasSqlInjection) {
+          const injectedQueryDemo = `SELECT * FROM users WHERE username = '${userValue}' AND password = '${passValue}'`;
+          const patternMatched = sqlInjectionPatterns.find(pattern => 
+            userValue.toLowerCase().includes(pattern.toLowerCase()) || passValue.toLowerCase().includes(pattern.toLowerCase())
+          ) || 'Unknown';
+          
+          return res.json({
+            success: true,
+            message: 'SQL Injection bypass successful!',
+            user: {
+              id: 1,
+              username: 'admin',
+              firstName: 'Admin',
+              lastName: 'User',
+              role: 'administrator',
+              email: 'admin@corp.local'
+            },
+            flag: 'FLAG{SQL_INJECTION_AUTH_BYPASS}',
+            sql_injection: {
+              detected: true,
+              vulnerable_query: injectedQueryDemo,
+              pattern_matched: patternMatched
+            },
+            vulnerability: 'SQL Injection in login query allows authentication bypass'
+          });
+        }
+        
+        // No SQLi detected - check if valid user
+        return res.json({
+          success: false,
+          message: userValue ? `Authentication failed for '${userValue}'` : 'Username is required',
+          hint: 'Try SQL injection payloads like: admin\'-- or \' OR \'1\'=\'1'
+        });
+      }
+    }
 
     // Auth protection for hard mode - rate limiting and SQLi detection
     const authBlocklist = ["'", '"', '--', 'or ', 'and ', 'union', 'select', ';'];
@@ -1585,8 +1720,8 @@ export async function registerRoutes(app: Express, server: Server): Promise<void
     // Check for SQL injection attempts (intentionally vulnerable)
     const sqlInjectionPatterns = [
       "' OR '1'='1", "'OR 1=1--", "' OR 1=1--", "1' OR '1'='1",
-      "admin' --", "' OR '", "OR 1=1", ";--", "UNION", "' OR 1=1=1 --",
-      "1=1", "TRUE", "'='", "' OR ''='"
+      "admin' --", "admin'--", "admin'/*", "'/*", "' OR '", "OR 1=1", ";--", "UNION", "' OR 1=1=1 --",
+      "1=1", "TRUE", "'='", "' OR ''='", "admin' #", "' #", "admin'#"
     ];
     
     const hasSqlInjection = sqlInjectionPatterns.some(pattern => 
@@ -1597,10 +1732,13 @@ export async function registerRoutes(app: Express, server: Server): Promise<void
     if (hasSqlInjection) {
       // Simulate successful SQL injection authentication bypass
       const injectedQueryDemo = `SELECT * FROM users WHERE username = '${userValue}' AND password = '${passValue}'`;
+      const patternMatched = sqlInjectionPatterns.find(pattern => 
+        userValue.toString().includes(pattern) || (passValue && passValue.toString().includes(pattern))
+      ) || 'Unknown';
       
       return res.json({
         success: true,
-        message: 'Login successful',
+        message: 'SQL Injection bypass successful!',
         user: {
           id: 1,
           username: 'admin',
@@ -1608,21 +1746,18 @@ export async function registerRoutes(app: Express, server: Server): Promise<void
           lastName: 'User',
           role: 'administrator',
           lastLogin: new Date().toISOString(),
-          email: 'admin@example.com'
+          email: 'admin@corp.local'
         },
         token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEsInVzZXJuYW1lIjoiYWRtaW4iLCJyb2xlIjoiYWRtaW5pc3RyYXRvciIsImlhdCI6MTY4MzE0NzIwMCwiZXhwIjoxNjgzMjMzNjAwfQ.8B-Dui5_jrK74pJU4Ojp9g-V2fdPQFpcP6I0T-5l9RQ',
         token_type: 'Bearer',
         expires_in: 86400,
+        flag: 'FLAG{SQL_INJECTION_AUTH_BYPASS}',
         sql_injection: {
           detected: true,
           vulnerable_query: injectedQueryDemo,
-          pattern_matched: sqlInjectionPatterns.find(pattern => userValue.toString().includes(pattern)) || 'Unknown'
+          pattern_matched: patternMatched
         },
-        metadata: {
-          ...authAttemptMetadata,
-          attack_type: 'sql_injection',
-          query_executed: injectedQueryDemo
-        }
+        vulnerability: 'SQL Injection in login query allows authentication bypass'
       });
     }
     
