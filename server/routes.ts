@@ -4,6 +4,12 @@ import { storage } from "./storage";
 import { z } from "zod";
 import { insertUserProgressSchema } from "@shared/schema";
 
+// Persistent storage for XSS stored comments (max 5 comments)
+let xssStoredComments: { author: string; text: string; date: string }[] = [
+  { author: 'John', text: 'Great product!', date: '2023-02-15' },
+  { author: 'Alice', text: 'I had an issue with shipping.', date: '2023-02-16' }
+];
+
 export async function registerRoutes(app: Express, server: Server): Promise<void> {
   // Add authentication routes first
   app.get('/api/login', (req, res) => {
@@ -774,12 +780,73 @@ export async function registerRoutes(app: Express, server: Server): Promise<void
 
   // XSS vulnerability - Enhanced for realistic exploitation
   apiRouter.get('/vuln/xss', (req: Request, res: Response) => {
-    const { input, search, comment, username, id, mode } = req.query;
+    const { input, search, comment, username, id, mode, action } = req.query;
     const isHardMode = mode === 'hard';
-    let storedComments = [
-      { author: 'John', text: 'Great product!', date: '2023-02-15' },
-      { author: 'Alice', text: 'I had an issue with shipping.', date: '2023-02-16' }
-    ];
+    
+    // View comments action - show stored comments without posting
+    if (action === 'view-comments') {
+      return res.send(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Product Comments - XSS Vulnerable</title>
+            <style>
+              body { font-family: Arial, sans-serif; margin: 0; padding: 20px; line-height: 1.6; background-color: #1e1e2e; color: #e2e2e2; }
+              header { background: #2a2a40; padding: 15px; margin-bottom: 20px; border-radius: 4px; }
+              .container { max-width: 800px; margin: 0 auto; background: #2d2d3f; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.3); }
+              h1, h2, h3 { color: #c792ea; }
+              .comments { margin-top: 20px; }
+              .comment { padding: 15px; background: #35354c; margin-bottom: 10px; border-radius: 4px; }
+              .comment-author { font-weight: bold; color: #89ddff; }
+              .comment-date { color: #7983bb; font-size: 0.8em; }
+              .comment-text { margin-top: 5px; word-break: break-word; }
+              .form { margin-top: 30px; background: #35354c; padding: 15px; border-radius: 4px; }
+              input, textarea { width: 100%; padding: 8px; margin-bottom: 10px; background: #23232f; border: 1px solid #444; color: #e2e2e2; border-radius: 4px; }
+              button { background: #7983bb; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; }
+              button:hover { background: #89ddff; }
+              .warning { margin-top: 30px; padding: 15px; background: #3a2424; border-left: 4px solid #ff5555; color: #ffaaaa; }
+              a { color: #89ddff; }
+              .count { color: #f97316; font-size: 0.9em; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <header>
+                <h1>Product Reviews</h1>
+                <p>Share your thoughts about our product.</p>
+              </header>
+              
+              <div class="comments">
+                <h2>Customer Comments: <span class="count">(${xssStoredComments.length}/5 stored)</span></h2>
+                ${xssStoredComments.length === 0 ? '<p style="color:#888;">No comments yet. Be the first!</p>' : ''}
+                ${xssStoredComments.map(c => `
+                  <div class="comment">
+                    <div class="comment-author">${c.author}</div>
+                    <div class="comment-date">${c.date}</div>
+                    <div class="comment-text">${c.text}</div>
+                  </div>
+                `).join('')}
+              </div>
+              
+              <div class="form">
+                <h3>Add Your Comment:</h3>
+                <form action="/api/vuln/xss" method="get">
+                  <input type="hidden" name="mode" value="${isHardMode ? 'hard' : ''}">
+                  <input type="text" name="username" placeholder="Your name" required>
+                  <textarea name="comment" placeholder="Your comment" rows="4" required></textarea>
+                  <button type="submit">Post Comment</button>
+                </form>
+              </div>
+              
+              <div class="warning">
+                <h3>Security Warning:</h3>
+                <p>This page is vulnerable to Stored XSS. User input is directly rendered without sanitization.</p>
+              </div>
+            </div>
+          </body>
+        </html>
+      `);
+    }
 
     // XSS Filter for hard mode - blocks common XSS patterns
     const xssBlocklist = ['<script', 'javascript:', 'onerror', 'onload', 'onclick', 'onmouseover', 'alert(', 'document.cookie', 'eval('];
@@ -914,6 +981,7 @@ export async function registerRoutes(app: Express, server: Server): Promise<void
 
               <div id="stored" class="tab-content">
                 <h2>Stored XSS Testing</h2>
+                <p style="color:#94a3b8;margin-bottom:15px;">Comments are stored persistently (max 5). <a href="/api/vuln/xss?action=view-comments" style="color:#f97316;">View existing comments →</a></p>
                 <form method="get" action="/api/vuln/xss">
                   <div class="form-group">
                     <label for="username">Your Name:</label>
@@ -924,6 +992,7 @@ export async function registerRoutes(app: Express, server: Server): Promise<void
                     <textarea id="comment" name="comment" rows="4" placeholder="Leave a comment..."></textarea>
                   </div>
                   <button type="submit">💬 Post Comment</button>
+                  <a href="/api/vuln/xss?action=view-comments" style="display:inline-block;padding:12px 25px;background:#1e293b;color:#f97316;text-decoration:none;border-radius:5px;font-weight:bold;">👁️ View Comments</a>
                 </form>
               </div>
 
@@ -976,7 +1045,13 @@ export async function registerRoutes(app: Express, server: Server): Promise<void
       const commentText = comment.toString();
       const usernameText = username.toString();
       
-      storedComments.push({
+      // Add new comment (keep max 5 comments - FIFO)
+      // If at capacity, remove oldest before adding new one
+      if (xssStoredComments.length >= 5) {
+        xssStoredComments.shift();
+      }
+      
+      xssStoredComments.push({
         author: usernameText,
         text: commentText,
         date: new Date().toISOString().split('T')[0]
@@ -1010,6 +1085,8 @@ export async function registerRoutes(app: Express, server: Server): Promise<void
               button:hover { background: #89ddff; }
               .warning { margin-top: 30px; padding: 15px; background: #3a2424; border-left: 4px solid #ff5555; color: #ffaaaa; }
               a { color: #89ddff; }
+              .count { color: #f97316; font-size: 0.9em; }
+              .success { background: #1a3a1a; border-left: 4px solid #22c55e; padding: 10px 15px; margin-bottom: 20px; border-radius: 4px; }
             </style>
           </head>
           <body>
@@ -1019,9 +1096,11 @@ export async function registerRoutes(app: Express, server: Server): Promise<void
                 <p>Share your thoughts about our product.</p>
               </header>
               
+              <div class="success">✅ Comment posted successfully!</div>
+              
               <div class="comments">
-                <h2>Customer Comments:</h2>
-                ${storedComments.map(c => `
+                <h2>Customer Comments: <span class="count">(${xssStoredComments.length}/5 stored)</span></h2>
+                ${xssStoredComments.map(c => `
                   <div class="comment">
                     <div class="comment-author">${c.author}</div>
                     <div class="comment-date">${c.date}</div>
@@ -1033,6 +1112,7 @@ export async function registerRoutes(app: Express, server: Server): Promise<void
               <div class="form">
                 <h3>Add Your Comment:</h3>
                 <form action="/api/vuln/xss" method="get">
+                  <input type="hidden" name="mode" value="${isHardMode ? 'hard' : ''}">
                   <input type="text" name="username" placeholder="Your name" required>
                   <textarea name="comment" placeholder="Your comment" rows="4" required></textarea>
                   <button type="submit">Post Comment</button>
@@ -1041,7 +1121,7 @@ export async function registerRoutes(app: Express, server: Server): Promise<void
               
               <div class="warning">
                 <h3>Security Warning:</h3>
-                <p>This page is vulnerable to both stored and reflected XSS. User input is directly rendered without sanitization.</p>
+                <p>This page is vulnerable to Stored XSS. User input is directly rendered without sanitization.</p>
               </div>
             </div>
             ${flagComment}
