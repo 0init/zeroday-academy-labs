@@ -57,6 +57,28 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
+### December 16, 2025: Easy/Hard Mode Implementation
+**Dual Difficulty System Added:**
+All 11 beginner labs now feature Easy Mode and Hard Mode buttons with distinct visual themes:
+
+1. **Easy Mode**: Direct access to vulnerable endpoints for learning fundamentals
+2. **Hard Mode**: WAF/filter protection requiring bypass techniques (implemented for 4 key labs):
+   - SQL Injection: Blocks common patterns (union, select, --, etc.) - requires encoding/case bypass
+   - XSS: Blocks script tags, event handlers - requires alternative payloads
+   - Command Injection: Blocks shell metacharacters (; | & etc.) - requires URL encoding
+   - Authentication Bypass: Blocks SQLi patterns - requires parameter pollution
+
+**Visual Theme System:**
+Each vulnerability category has a unique color scheme:
+- SQL Injection: Red (#dc2626)
+- XSS: Orange (#f97316)
+- Command Injection: Rose (#f43f5e)
+- Authentication: Yellow/Gold (#eab308)
+- Access Control: Lime (#84cc16)
+- API Security: Blue/Cyan/Violet variants
+- XXE: Purple (#8b5cf6)
+- File Upload: Teal (#14b8a6)
+
 ### October 17, 2025: Documentation Completed for All New Labs
 **Comprehensive Documentation Added:**
 All three documentation files have been updated to reflect the new 21-lab curriculum (11 beginner + 10 intermediate):
