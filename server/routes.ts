@@ -122,9 +122,89 @@ export async function registerRoutes(app: Express, server: Server): Promise<void
   
   // Enhanced SQL Injection vulnerability - Enterprise Banking Application
   apiRouter.get('/vuln/sqli', async (req: Request, res: Response) => {
-    const { input, id, search, login, type, username } = req.query;
+    const { input, id, search, login, type, username, mode } = req.query;
     const userAgent = req.get('User-Agent') || '';
     const startTime = Date.now();
+    const isHardMode = mode === 'hard';
+
+    // WAF simulation for hard mode - blocks common SQLi patterns
+    const wafBlocklist = ['union', 'select', '--', 'or 1=1', 'drop', 'delete', 'insert', 'update', ';', '/*', '*/', 'benchmark', 'sleep'];
+    
+    if (isHardMode) {
+      const paramValue = (id || input || search || username)?.toString()?.toLowerCase() || '';
+      
+      // Check if any blocked pattern is detected
+      for (const pattern of wafBlocklist) {
+        if (paramValue.includes(pattern)) {
+          return res.status(403).json({
+            error: true,
+            waf_blocked: true,
+            message: '🛡️ WAF Alert: Potential SQL injection detected',
+            blocked_pattern: pattern,
+            hint: 'Try bypass techniques: case manipulation, URL encoding, comment injection, or alternative syntax'
+          });
+        }
+      }
+    }
+
+    // HARD MODE - Show advanced lab interface with WAF protection
+    if (isHardMode && !input && !id && !search && !login && !type && !username) {
+      return res.send(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>🔐 SecureBank - WAF Protected (Hard Mode)</title>
+            <style>
+              body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #0f0f1a; color: #eee; }
+              .container { max-width: 900px; margin: 0 auto; background: #1a1a2e; padding: 30px; border-radius: 10px; border: 2px solid #dc2626; }
+              h1 { color: #ef4444; text-align: center; margin-bottom: 30px; }
+              .waf-badge { background: linear-gradient(45deg, #dc2626, #b91c1c); padding: 10px 20px; border-radius: 20px; display: inline-block; margin-bottom: 20px; }
+              .form-group { margin-bottom: 20px; }
+              label { display: block; margin-bottom: 8px; color: #ef4444; font-weight: bold; }
+              input { width: 100%; padding: 12px; background: #0f172a; border: 2px solid #dc2626; color: #fff; border-radius: 5px; font-size: 16px; }
+              button { background: linear-gradient(45deg, #dc2626, #991b1b); color: white; padding: 12px 25px; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; font-weight: bold; }
+              .challenge { background: #1e1e2e; border: 1px solid #dc2626; padding: 20px; border-radius: 5px; margin: 20px 0; }
+              .blocked { color: #ef4444; font-family: monospace; }
+              code { background: #0f172a; padding: 2px 6px; border-radius: 3px; color: #fbbf24; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <h1>🔐 SecureBank Enterprise - HARD MODE</h1>
+              <div class="waf-badge">🛡️ WAF Protection: ENABLED</div>
+              
+              <div class="challenge">
+                <h3>⚔️ Challenge: Bypass the WAF</h3>
+                <p>This system is protected by a Web Application Firewall that blocks common SQL injection patterns:</p>
+                <p class="blocked">Blocked: union, select, --, or 1=1, drop, delete, insert, update, ;, /*, */, benchmark, sleep</p>
+                <p>Your goal: Extract the admin password using <strong>bypass techniques</strong>:</p>
+                <ul>
+                  <li>Case manipulation: <code>UnIoN SeLeCt</code></li>
+                  <li>URL encoding: <code>%55%4e%49%4f%4e</code></li>
+                  <li>Comment injection: <code>un/**/ion sel/**/ect</code></li>
+                  <li>Alternative operators: <code>|| instead of OR</code></li>
+                </ul>
+              </div>
+
+              <h2>User Lookup (WAF Protected)</h2>
+              <form method="get" action="/api/vuln/sqli">
+                <input type="hidden" name="mode" value="hard" />
+                <div class="form-group">
+                  <label for="id">Enter User ID:</label>
+                  <input type="text" id="id" name="id" placeholder="Try to bypass the WAF..." />
+                </div>
+                <button type="submit">🔍 Search (WAF Active)</button>
+              </form>
+              
+              <div class="challenge" style="margin-top: 30px;">
+                <h3>🏆 Success Flag</h3>
+                <p>Extract admin credentials to get: <code>FLAG{SQLI_WAF_BYPASS_MASTER}</code></p>
+              </div>
+            </div>
+          </body>
+        </html>
+      `);
+    }
 
     // If no parameters provided, show the main SQL injection lab interface
     if (!input && !id && !search && !login && !type && !username) {
@@ -520,11 +600,89 @@ export async function registerRoutes(app: Express, server: Server): Promise<void
 
   // XSS vulnerability - Enhanced for realistic exploitation
   apiRouter.get('/vuln/xss', (req: Request, res: Response) => {
-    const { input, search, comment, username, id } = req.query;
+    const { input, search, comment, username, id, mode } = req.query;
+    const isHardMode = mode === 'hard';
     let storedComments = [
       { author: 'John', text: 'Great product!', date: '2023-02-15' },
       { author: 'Alice', text: 'I had an issue with shipping.', date: '2023-02-16' }
     ];
+
+    // XSS Filter for hard mode - blocks common XSS patterns
+    const xssBlocklist = ['<script', 'javascript:', 'onerror', 'onload', 'onclick', 'onmouseover', 'alert(', 'document.cookie', 'eval('];
+    
+    if (isHardMode) {
+      const paramValue = (input || search || comment)?.toString()?.toLowerCase() || '';
+      for (const pattern of xssBlocklist) {
+        if (paramValue.includes(pattern)) {
+          return res.status(403).send(`
+            <!DOCTYPE html><html><head><title>XSS Blocked</title>
+            <style>body{background:#0f0f1a;color:#fff;font-family:Arial;padding:50px;text-align:center;}
+            .blocked{background:#dc2626;padding:20px;border-radius:10px;max-width:600px;margin:auto;}</style>
+            </head><body><div class="blocked"><h1>🛡️ XSS Filter Triggered</h1>
+            <p>Blocked pattern: <code>${pattern}</code></p>
+            <p>Try bypass: encoding, case mixing, or alternative events</p></div></body></html>
+          `);
+        }
+      }
+    }
+
+    // HARD MODE - Show advanced lab interface with CSP protection
+    if (isHardMode && !input && !search && !comment && !username && !id) {
+      return res.send(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>🔐 SecureShop - XSS Protected (Hard Mode)</title>
+            <style>
+              body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #0f0f1a; color: #eee; }
+              .container { max-width: 800px; margin: 0 auto; background: #1a1a2e; padding: 30px; border-radius: 10px; border: 2px solid #f97316; }
+              h1 { color: #f97316; text-align: center; }
+              .waf-badge { background: linear-gradient(45deg, #f97316, #ea580c); padding: 10px 20px; border-radius: 20px; display: inline-block; margin-bottom: 20px; }
+              .form-group { margin-bottom: 20px; }
+              label { display: block; margin-bottom: 8px; color: #f97316; font-weight: bold; }
+              input, textarea { width: 100%; padding: 12px; background: #0f172a; border: 2px solid #f97316; color: #fff; border-radius: 5px; }
+              button { background: linear-gradient(45deg, #f97316, #ea580c); color: white; padding: 12px 25px; border: none; border-radius: 5px; cursor: pointer; }
+              .challenge { background: #1e1e2e; border: 1px solid #f97316; padding: 20px; border-radius: 5px; margin: 20px 0; }
+              .blocked { color: #f97316; font-family: monospace; }
+              code { background: #0f172a; padding: 2px 6px; border-radius: 3px; color: #fbbf24; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <h1>🔐 SecureShop - HARD MODE</h1>
+              <div class="waf-badge">🛡️ XSS Filter: ENABLED</div>
+              
+              <div class="challenge">
+                <h3>⚔️ Challenge: Bypass the XSS Filter</h3>
+                <p class="blocked">Blocked: &lt;script, javascript:, onerror, onload, onclick, onmouseover, alert(, document.cookie, eval(</p>
+                <p>Bypass techniques:</p>
+                <ul>
+                  <li>Case mixing: <code>&lt;ScRiPt&gt;</code></li>
+                  <li>HTML encoding: <code>&amp;#x3c;script&amp;#x3e;</code></li>
+                  <li>Alternative events: <code>onfocus, onblur, ontoggle</code></li>
+                  <li>SVG/Math tags: <code>&lt;svg onload=...&gt;</code></li>
+                </ul>
+              </div>
+
+              <h2>Product Search (XSS Protected)</h2>
+              <form method="get" action="/api/vuln/xss">
+                <input type="hidden" name="mode" value="hard" />
+                <div class="form-group">
+                  <label for="search">Search Products:</label>
+                  <input type="text" id="search" name="search" placeholder="Try XSS bypass..." />
+                </div>
+                <button type="submit">🔍 Search</button>
+              </form>
+              
+              <div class="challenge" style="margin-top: 30px;">
+                <h3>🏆 Success Flag</h3>
+                <p>Execute XSS to get: <code>FLAG{XSS_FILTER_BYPASS_EXPERT}</code></p>
+              </div>
+            </div>
+          </body>
+        </html>
+      `);
+    }
 
     // If no parameters provided, show the main XSS lab interface
     if (!input && !search && !comment && !username && !id) {
@@ -885,7 +1043,88 @@ export async function registerRoutes(app: Express, server: Server): Promise<void
 
   // Broken Authentication vulnerability - Enhanced for realistic exploitation
   apiRouter.get('/vuln/auth', (req: Request, res: Response) => {
-    const { username, password, user, pass, u, p, login, account } = req.query;
+    const { username, password, user, pass, u, p, login, account, mode } = req.query;
+    const isHardMode = mode === 'hard';
+
+    // Auth protection for hard mode - rate limiting and SQLi detection
+    const authBlocklist = ["'", '"', '--', 'or ', 'and ', 'union', 'select', ';'];
+    
+    if (isHardMode && (username || user || u)) {
+      const userValue = (username || user || u)?.toString()?.toLowerCase() || '';
+      for (const pattern of authBlocklist) {
+        if (userValue.includes(pattern)) {
+          return res.status(403).json({
+            error: true,
+            blocked: true,
+            message: '🛡️ Auth Protection: Suspicious input detected',
+            blocked_pattern: pattern,
+            hint: 'Try parameter pollution, case manipulation, or alternative auth endpoints'
+          });
+        }
+      }
+    }
+
+    // HARD MODE - Show advanced lab interface with protection
+    if (isHardMode && !username && !password && !user && !pass && !u && !p && !login && !account) {
+      return res.send(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>🔐 SecureAuth - Protected (Hard Mode)</title>
+            <style>
+              body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #0f0f1a; color: #eee; }
+              .container { max-width: 800px; margin: 0 auto; background: #1a1a2e; padding: 30px; border-radius: 10px; border: 2px solid #eab308; }
+              h1 { color: #eab308; text-align: center; }
+              .waf-badge { background: linear-gradient(45deg, #eab308, #ca8a04); padding: 10px 20px; border-radius: 20px; display: inline-block; margin-bottom: 20px; color: #000; }
+              .form-group { margin-bottom: 20px; }
+              label { display: block; margin-bottom: 8px; color: #eab308; font-weight: bold; }
+              input { width: 100%; padding: 12px; background: #0f172a; border: 2px solid #eab308; color: #fff; border-radius: 5px; }
+              button { background: linear-gradient(45deg, #eab308, #ca8a04); color: #000; padding: 12px 25px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
+              .challenge { background: #1e1e2e; border: 1px solid #eab308; padding: 20px; border-radius: 5px; margin: 20px 0; }
+              .blocked { color: #eab308; font-family: monospace; }
+              code { background: #0f172a; padding: 2px 6px; border-radius: 3px; color: #fbbf24; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <h1>🔐 SecureAuth Enterprise - HARD MODE</h1>
+              <div class="waf-badge">🛡️ SQLi Protection + Rate Limiting</div>
+              
+              <div class="challenge">
+                <h3>⚔️ Challenge: Bypass Multi-Layer Auth</h3>
+                <p class="blocked">Blocked: ' " -- or and union select ;</p>
+                <p>Bypass techniques:</p>
+                <ul>
+                  <li>Parameter pollution: <code>user=admin&user=guest</code></li>
+                  <li>Mass assignment: <code>role=admin</code></li>
+                  <li>Session manipulation via cookies</li>
+                  <li>Race condition on registration</li>
+                </ul>
+              </div>
+
+              <h2>Login (Protected)</h2>
+              <form method="get" action="/api/vuln/auth">
+                <input type="hidden" name="mode" value="hard" />
+                <div class="form-group">
+                  <label for="username">Username:</label>
+                  <input type="text" id="username" name="username" placeholder="Bypass the protection..." />
+                </div>
+                <div class="form-group">
+                  <label for="password">Password:</label>
+                  <input type="password" id="password" name="password" />
+                </div>
+                <button type="submit">🔐 Login (Protected)</button>
+              </form>
+              
+              <div class="challenge" style="margin-top: 30px;">
+                <h3>🏆 Success Flag</h3>
+                <p>Bypass auth to get: <code>FLAG{AUTH_BYPASS_ADVANCED}</code></p>
+              </div>
+            </div>
+          </body>
+        </html>
+      `);
+    }
     
     // If no parameters provided, show the main authentication bypass lab interface
     if (!username && !password && !user && !pass && !u && !p && !login && !account) {
@@ -2546,7 +2785,84 @@ export async function registerRoutes(app: Express, server: Server): Promise<void
 
   // Command Injection vulnerability - GET endpoint for web interface
   apiRouter.get('/vuln/command', (req: Request, res: Response) => {
-    const { command, hostname, ip, host, target, dns, address } = req.query;
+    const { command, hostname, ip, host, target, dns, address, mode } = req.query;
+    const isHardMode = mode === 'hard';
+
+    // Command filter for hard mode - blocks common injection characters
+    const cmdBlocklist = [';', '|', '&', '`', '$', '(', ')', '{', '}', '<', '>', '\n', '\r'];
+    
+    if (isHardMode && command) {
+      const cmdValue = command.toString();
+      for (const char of cmdBlocklist) {
+        if (cmdValue.includes(char)) {
+          return res.status(403).json({
+            error: true,
+            filtered: true,
+            message: '🛡️ Input Filter: Dangerous character blocked',
+            blocked_char: char,
+            hint: 'Try newline encoding, tab characters, or alternative separators'
+          });
+        }
+      }
+    }
+
+    // HARD MODE - Show advanced lab interface with input filtering
+    if (isHardMode && !command && !hostname && !ip && !host && !target && !dns && !address) {
+      return res.send(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>🔐 SecurePing - Filtered (Hard Mode)</title>
+            <style>
+              body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #0f0f1a; color: #eee; }
+              .container { max-width: 800px; margin: 0 auto; background: #1a1a2e; padding: 30px; border-radius: 10px; border: 2px solid #f43f5e; }
+              h1 { color: #f43f5e; text-align: center; }
+              .waf-badge { background: linear-gradient(45deg, #f43f5e, #e11d48); padding: 10px 20px; border-radius: 20px; display: inline-block; margin-bottom: 20px; }
+              .form-group { margin-bottom: 20px; }
+              label { display: block; margin-bottom: 8px; color: #f43f5e; font-weight: bold; }
+              input { width: 100%; padding: 12px; background: #0f172a; border: 2px solid #f43f5e; color: #fff; border-radius: 5px; }
+              button { background: linear-gradient(45deg, #f43f5e, #e11d48); color: white; padding: 12px 25px; border: none; border-radius: 5px; cursor: pointer; }
+              .challenge { background: #1e1e2e; border: 1px solid #f43f5e; padding: 20px; border-radius: 5px; margin: 20px 0; }
+              .blocked { color: #f43f5e; font-family: monospace; }
+              code { background: #0f172a; padding: 2px 6px; border-radius: 3px; color: #fbbf24; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <h1>🔐 SecurePing Enterprise - HARD MODE</h1>
+              <div class="waf-badge">🛡️ Input Filter: ENABLED</div>
+              
+              <div class="challenge">
+                <h3>⚔️ Challenge: Bypass the Character Filter</h3>
+                <p class="blocked">Blocked: ; | & \` $ ( ) { } &lt; &gt; \\n \\r</p>
+                <p>Bypass techniques:</p>
+                <ul>
+                  <li>URL encoding: <code>%0a</code> for newline</li>
+                  <li>Tab character: <code>%09</code></li>
+                  <li>Alternative separators in some shells</li>
+                  <li>Hex encoding: <code>\\x0a</code></li>
+                </ul>
+              </div>
+
+              <h2>Network Ping (Filtered)</h2>
+              <form method="get" action="/api/vuln/command">
+                <input type="hidden" name="mode" value="hard" />
+                <div class="form-group">
+                  <label for="command">Enter IP Address:</label>
+                  <input type="text" id="command" name="command" placeholder="Try to bypass the filter..." />
+                </div>
+                <button type="submit">🔍 Ping (Filtered)</button>
+              </form>
+              
+              <div class="challenge" style="margin-top: 30px;">
+                <h3>🏆 Success Flag</h3>
+                <p>Execute a command to get: <code>FLAG{CMD_INJECTION_FILTER_BYPASS}</code></p>
+              </div>
+            </div>
+          </body>
+        </html>
+      `);
+    }
     
     // If no parameters, show the web interface
     if (!command && !hostname && !ip && !host && !target && !dns && !address) {
