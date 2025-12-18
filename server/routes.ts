@@ -3028,6 +3028,199 @@ ${objectToXml(userData, '    ')}  </user>
     });
   });
 
+  // XXE POST handler - accepts XML body for proper entity parsing
+  apiRouter.post('/vuln/xxe', (req: Request, res: Response) => {
+    let xmlInput = '';
+    
+    // Handle Buffer from express.raw() or express.text()
+    if (Buffer.isBuffer(req.body)) {
+      xmlInput = req.body.toString('utf8');
+    } else if (typeof req.body === 'string') {
+      xmlInput = req.body;
+    } else if (req.body && typeof req.body === 'object' && req.body.xml) {
+      xmlInput = req.body.xml;
+    }
+    
+    if (!xmlInput || xmlInput.length === 0) {
+      return res.json({
+        error: 'No XML document provided',
+        hint: 'Send an XML document in the request body',
+        example: '<?xml version="1.0"?><!DOCTYPE root [<!ENTITY xxe SYSTEM "file:///etc/passwd">]><root>&xxe;</root>'
+      });
+    }
+    
+    const xxeMetadata = {
+      parser: 'libxml2 (simulated)',
+      parser_version: '2.9.4',
+      features_enabled: ['external-entities', 'dtd-processing', 'parameter-entities'],
+      detected_attack: false,
+      accessed_resources: [] as string[]
+    };
+    
+    // 1. File access via external entity
+    const fileAccessPattern = /SYSTEM\s+["']file:\/\/([^"']+)["']/i;
+    const fileAccessMatch = xmlInput.match(fileAccessPattern);
+    
+    if (fileAccessMatch) {
+      xxeMetadata.detected_attack = true;
+      xxeMetadata.accessed_resources.push(fileAccessMatch[1]);
+      
+      const filePath = fileAccessMatch[1];
+      let fileContent = '';
+      
+      if (filePath.includes('/etc/passwd')) {
+        fileContent = `root:x:0:0:root:/root:/bin/bash
+daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin
+bin:x:2:2:bin:/bin:/usr/sbin/nologin
+sys:x:3:3:sys:/dev:/usr/sbin/nologin
+www-data:x:33:33:www-data:/var/www:/usr/sbin/nologin
+mysql:x:27:27:MySQL Server:/var/lib/mysql:/bin/false
+admin:x:1000:1000:Admin User:/home/admin:/bin/bash
+FLAG: FLAG{XXE_FILE_READ_SUCCESS}`;
+      } else if (filePath.includes('/etc/shadow')) {
+        fileContent = `root:$6$xyz:18000:0:99999:7:::
+admin:$6$abc123:18000:0:99999:7:::
+FLAG: FLAG{XXE_SHADOW_FILE_ACCESS}`;
+      } else if (filePath.includes('.env') || filePath.includes('config')) {
+        fileContent = `DB_HOST=localhost
+DB_USER=app_user
+DB_PASS=SuperSecr3tP@ssw0rd!
+API_KEY=ak_live_Xnd03Jkpx71LK9s8h2DpFE3v
+ADMIN_PASSWORD=AdminPass123!
+FLAG: FLAG{XXE_ENV_SECRETS_EXPOSED}`;
+      } else {
+        fileContent = `[Simulated contents of ${filePath}]
+FLAG: FLAG{XXE_FILE_ACCESS}`;
+      }
+      
+      return res.json({
+        parser_output: {
+          message: 'XML parsed successfully',
+          extracted_entity: fileContent,
+          xml_structure: 'Document with DTD and external entity reference'
+        },
+        xxe_vulnerability: {
+          detected: true,
+          attack_vector: 'External entity file access',
+          accessed_file: filePath,
+          success: true,
+          message: 'XXE vulnerability exploited! File contents extracted through external entity.',
+          flag: 'FLAG{XXE_FILE_ACCESS_SUCCESSFUL}'
+        },
+        metadata: xxeMetadata
+      });
+    }
+    
+    // 2. SSRF via XXE
+    const ssrfPattern = /SYSTEM\s+["']https?:\/\/([^"']+)["']/i;
+    const ssrfMatch = xmlInput.match(ssrfPattern);
+    
+    if (ssrfMatch) {
+      xxeMetadata.detected_attack = true;
+      const targetUrl = ssrfMatch[1];
+      xxeMetadata.accessed_resources.push(`http://${targetUrl}`);
+      
+      let ssrfResponse = '';
+      if (targetUrl.includes('169.254.169.254') || targetUrl.includes('metadata')) {
+        ssrfResponse = `ami-id: ami-0123456789abcdef0
+instance-id: i-0987654321fedcba0
+instance-type: t2.micro
+local-ipv4: 10.0.0.42
+iam/security-credentials/admin-role
+FLAG: FLAG{XXE_SSRF_CLOUD_METADATA}`;
+      } else if (targetUrl.includes('localhost') || targetUrl.includes('127.0.0.1')) {
+        ssrfResponse = `Internal Service Response
+Server: Apache/2.4.41
+Admin Panel: http://localhost:8080/admin
+FLAG: FLAG{XXE_SSRF_LOCALHOST}`;
+      } else {
+        ssrfResponse = `Response from ${targetUrl}
+FLAG: FLAG{XXE_SSRF_SUCCESS}`;
+      }
+      
+      return res.json({
+        parser_output: {
+          message: 'XML parsed successfully',
+          extracted_entity: ssrfResponse,
+          xml_structure: 'Document with external HTTP entity'
+        },
+        xxe_vulnerability: {
+          detected: true,
+          attack_vector: 'SSRF via XXE',
+          target_url: `http://${targetUrl}`,
+          success: true,
+          message: 'XXE-based SSRF successful! Internal resource accessed.',
+          flag: 'FLAG{XXE_SSRF_SUCCESS}'
+        },
+        metadata: xxeMetadata
+      });
+    }
+    
+    // 3. Blind XXE with parameter entities
+    if (xmlInput.includes('%') && (xmlInput.includes('ENTITY') || xmlInput.includes('dtd'))) {
+      xxeMetadata.detected_attack = true;
+      
+      return res.json({
+        parser_output: {
+          message: 'XML parsed - parameter entities detected',
+          xml_structure: 'Document with parameter entity references'
+        },
+        xxe_vulnerability: {
+          detected: true,
+          attack_vector: 'Blind XXE with parameter entities',
+          success: true,
+          message: 'Blind XXE payload detected! Out-of-band exfiltration would succeed.',
+          flag: 'FLAG{BLIND_XXE_PARAMETER_ENTITIES}'
+        },
+        metadata: xxeMetadata
+      });
+    }
+    
+    // 4. XInclude
+    if (xmlInput.includes('XInclude') || xmlInput.includes('xi:include')) {
+      xxeMetadata.detected_attack = true;
+      
+      const hrefMatch = xmlInput.match(/href=["']([^"']+)["']/);
+      const includedFile = hrefMatch ? hrefMatch[1] : 'unknown';
+      
+      return res.json({
+        parser_output: {
+          message: 'XML parsed with XInclude',
+          extracted_entity: includedFile.includes('/etc/passwd') 
+            ? 'root:x:0:0:root:/root:/bin/bash\nFLAG: FLAG{XINCLUDE_FILE_READ}'
+            : `[Contents of ${includedFile}]`,
+          xml_structure: 'Document with XInclude directive'
+        },
+        xxe_vulnerability: {
+          detected: true,
+          attack_vector: 'XInclude injection',
+          included_resource: includedFile,
+          success: true,
+          message: 'XInclude attack successful! This bypasses DTD restrictions.',
+          flag: 'FLAG{XINCLUDE_BYPASS}'
+        },
+        metadata: xxeMetadata
+      });
+    }
+    
+    // 5. Regular XML - no attack detected
+    if (xmlInput.includes('<') && xmlInput.includes('>')) {
+      return res.json({
+        parser_output: {
+          message: 'XML parsed successfully',
+          xml_structure: 'Regular XML document without external entities'
+        },
+        note: 'No XXE attack detected. Try adding a DOCTYPE with external entity references.',
+        hint: 'Example: <!DOCTYPE root [<!ENTITY xxe SYSTEM "file:///etc/passwd">]>'
+      });
+    }
+    
+    return res.json({
+      error: 'Invalid XML format',
+      hint: 'Send a valid XML document with DOCTYPE and external entity references'
+    });
+  });
+
   // Broken Access Control vulnerability - IDOR only
   apiRouter.get('/vuln/access-control', (req: Request, res: Response) => {
     const { userId, id, user_id } = req.query;
@@ -3196,27 +3389,48 @@ ${objectToXml(userData, '    ')}  </user>
       }
       
       // Add sensitive data to user profile and check for sensitive data exposure
-      const isAdminDataAccessed = parseInt(targetUserId.toString()) === 1;
-      const responseData = {
-        ...userData,
-        sensitive_data: sensitiveData,
-        profile_data: {
-          bio: `Profile for user ${targetUserId}`,
-          interests: ['security', 'hacking', 'privacy'],
-          settings: {
-            two_factor_enabled: parseInt(targetUserId.toString()) === 1,
-            login_notifications: true
-          }
-        },
-        access_control_info: {
-          vulnerability: 'insecure_direct_object_reference',
-          authenticated_user_id: 10, // The actual authenticated user should be 10
-          accessed_user_id: parseInt(targetUserId.toString()), // But can access any ID
-          authorized: false, // Should be false except for accessing own data
-          message: 'This endpoint has an IDOR vulnerability - authenticated user (10) is accessing data for user ' + targetUserId,
-          flag: isAdminDataAccessed ? '{IDOR_ADMIN_DATA_ACCESS}' : null
-        }
+      const targetId = parseInt(targetUserId.toString());
+      const isOwnData = targetId === 10;
+      const isAdminDataAccessed = targetId === 1;
+      const accessedRole = targetId === 1 ? 'admin' : targetId === 2 ? 'manager' : targetId === 5 ? 'ceo' : 'user';
+      const isPrivilegeEscalation = ['admin', 'manager', 'ceo'].includes(accessedRole);
+      
+      // Enhanced user data for inline display
+      const userProfile = {
+        id: targetId,
+        username: targetId === 1 ? 'admin' : targetId === 5 ? 'ceo_johnson' : `user${targetId}`,
+        email: targetId === 1 ? 'admin@corp.com' : targetId === 5 ? 'johnson@corp.com' : `user${targetId}@corp.com`,
+        role: accessedRole,
+        department: targetId === 1 ? 'IT Security' : targetId === 5 ? 'Executive' : 'General',
+        salary: targetId === 1 ? 150000 : targetId === 5 ? 500000 : 60000 + (targetId * 1000),
+        ssn: targetId <= 5 ? `${100 + targetId}-${50 + targetId}-${1000 + targetId}` : undefined
       };
+      
+      const responseData: any = {
+        success: true,
+        user: userProfile
+      };
+      
+      // Only show access control bypass info if accessing someone else's data
+      if (!isOwnData) {
+        responseData.access_control_bypass = {
+          detected: true,
+          your_user_id: 10,
+          accessed_user_id: targetId,
+          your_role: 'user',
+          accessed_role: accessedRole,
+          is_privilege_escalation: isPrivilegeEscalation,
+          message: isPrivilegeEscalation 
+            ? `Privilege escalation! You accessed ${accessedRole} data while being a regular user.`
+            : `IDOR detected! You accessed user ${targetId}'s data without authorization.`
+        };
+        
+        responseData.flag = isAdminDataAccessed 
+          ? 'FLAG{IDOR_ADMIN_DATA_ACCESS}' 
+          : isPrivilegeEscalation 
+            ? 'FLAG{PRIVILEGE_ESCALATION_SUCCESS}'
+            : 'FLAG{IDOR_USER_DATA_ACCESS}';
+      }
       
       return res.json(responseData);
     }
@@ -3232,50 +3446,34 @@ ${objectToXml(userData, '    ')}  </user>
     
     if (isAdminRequest) {
       // Missing proper authorization check - should verify role is 'admin'
-      const adminData = {
-        system_stats: {
+      return res.json({
+        success: true,
+        admin_access: true,
+        user: {
+          id: 10,
+          username: 'testuser',
+          email: 'testuser@corp.com',
+          role: 'admin (escalated)',
+          department: 'IT Security (unauthorized)',
+          salary: 150000,
+          ssn: '999-99-9999'
+        },
+        access_control_bypass: {
+          detected: true,
+          your_user_id: 10,
+          accessed_user_id: 1,
+          your_role: 'user',
+          accessed_role: 'admin',
+          is_privilege_escalation: true,
+          message: 'Critical privilege escalation! You accessed admin panel without admin role.'
+        },
+        flag: 'FLAG{ADMIN_PANEL_UNAUTHORIZED_ACCESS}',
+        admin_panel_data: {
           total_users: 13752,
-          active_users: 8451,
-          premium_users: 2340,
-          monthly_revenue: '$43,250.00',
-          server_load: '32%',
-          database_size: '12.4 GB'
-        },
-        sensitive_operations: {
-          user_deletion_enabled: true,
-          maintenance_mode: false,
-          debug_mode: true,
-          backup_schedule: 'daily-03:00'
-        },
-        security_settings: {
-          min_password_length: 8,
-          require_2fa_for_admins: false,
-          failed_login_lockout: 5,
-          password_expiry_days: 90
-        },
-        api_keys: {
-          stripe_secret: 'sk_live_abcdef123456',
-          mailchimp_api: '1a2b3c4d5e6f7g8h9i',
-          aws_secret: 'AWS+SECRET+KEY+ABCXYZ',
-          analytics_token: 'GAID:1234567890'
-        },
-        administrator_list: [
-          { id: 1, username: 'admin', email: 'admin@example.com', super_admin: true },
-          { id: 5, username: 'jane', email: 'jane@example.com', super_admin: false },
-          { id: 8, username: 'mike', email: 'mike@example.com', super_admin: false }
-        ],
-        access_control_info: {
-          vulnerability: 'missing_function_level_access_control',
-          authenticated_user: {
-            user_id: 10,
-            role: 'user',
-            should_have_access: false
-          },
-          message: 'This endpoint fails to validate that the user has administrative privileges'
+          api_keys_exposed: ['sk_live_abcdef123456', 'AWS_SECRET_KEY'],
+          admin_emails: ['admin@corp.com', 'ceo@corp.com']
         }
-      };
-      
-      return res.json(adminData);
+      });
     }
     
     // Default response - provide more useful information for testing
