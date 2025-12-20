@@ -11,8 +11,7 @@ import SensitiveDataLabBeginner from '@/components/lab/beginner/sensitive-data-l
 import XxeLabBeginner from '@/components/lab/beginner/xxe-lab-beginner';
 import CommandInjectionLabBeginner from '@/components/lab/beginner/command-injection-lab-beginner';
 
-// Import new API security lab components
-import ApiUnauthEndpointsLabBeginner from '@/components/lab/beginner/api-unauth-endpoints-lab-beginner';
+// Import API security lab components
 import ApiSensitiveDataLabBeginner from '@/components/lab/beginner/api-sensitive-data-lab-beginner';
 import ApiPredictableIdsLabBeginner from '@/components/lab/beginner/api-predictable-ids-lab-beginner';
 
@@ -27,7 +26,7 @@ export default function BeginnerPage() {
             </h1>
             <p className="text-lg md:text-xl text-gray-400 mb-6 px-4">Master fundamental web security vulnerabilities</p>
             <Badge className="bg-[#00FECA]/20 text-[#00FECA] border-[#00FECA]/30 px-4 py-2 text-base md:text-lg">
-              11 Essential Labs
+              10 Essential Labs
             </Badge>
           </div>
 
@@ -40,7 +39,6 @@ export default function BeginnerPage() {
             <XxeLabBeginner />
             <AccessControlLabBeginner />
             <SecurityMisconfigLabBeginner />
-            <ApiUnauthEndpointsLabBeginner />
             <ApiSensitiveDataLabBeginner />
             <ApiPredictableIdsLabBeginner />
           </div>
