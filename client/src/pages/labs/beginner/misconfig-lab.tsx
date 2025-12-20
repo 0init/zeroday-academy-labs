@@ -29,6 +29,7 @@ export default function MisconfigLabPage() {
               <span className="text-white font-bold text-sm">E</span>
             </div>
             <span className="text-gray-800 font-semibold">EcoShop</span>
+            <span className="text-gray-400 text-xs ml-2">v2.4.1</span>
           </div>
           <div className="flex items-center gap-4 text-gray-600 text-sm">
             <a href="#" className="hover:text-green-600">Products</a>
@@ -95,11 +96,11 @@ export default function MisconfigLabPage() {
                   ))}
                 </div>
               </div>
-            ) : (
+            ) : searchQuery ? (
               <div className="text-center py-8 text-gray-500">
                 No products found for "{searchQuery}"
               </div>
-            )}
+            ) : null}
           </div>
         )}
 
@@ -153,6 +154,7 @@ export default function MisconfigLabPage() {
             <a href="#" className="hover:text-white">Terms of Service</a>
             <a href="#" className="hover:text-white">Contact Us</a>
           </div>
+          <p className="mt-4 text-gray-600 text-xs">Powered by Node.js | API v2.4.1</p>
         </div>
       </footer>
     </div>
