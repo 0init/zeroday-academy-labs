@@ -28,9 +28,9 @@ const labs = [
   {
     id: 'auth-bypass',
     title: 'Authentication Bypass',
-    description: 'Gain unauthorized admin access to a control panel using SQL injection techniques.',
+    description: 'Manipulate JWT tokens to escalate privileges and gain admin access to a secure control panel.',
     category: 'Authentication',
-    difficulty: 'Easy',
+    difficulty: 'Medium',
     color: '#eab308',
     icon: Key,
     path: '/labs/beginner/auth-bypass'
@@ -48,9 +48,9 @@ const labs = [
   {
     id: 'sensitive-data',
     title: 'Sensitive Data Exposure',
-    description: 'Discover exposed patient records with SSN, medical history, and insurance data.',
+    description: 'Enumerate hidden API endpoints in a healthcare portal to discover exposed patient records and credentials.',
     category: 'Data Exposure',
-    difficulty: 'Easy',
+    difficulty: 'Medium',
     color: '#14b8a6',
     icon: FileText,
     path: '/labs/beginner/sensitive-data'
@@ -78,9 +78,9 @@ const labs = [
   {
     id: 'misconfig',
     title: 'Security Misconfiguration',
-    description: 'Trigger verbose error messages to expose database credentials and API keys.',
+    description: 'Discover exposed configuration files, debug headers, and verbose errors in an e-commerce site.',
     category: 'Configuration',
-    difficulty: 'Easy',
+    difficulty: 'Medium',
     color: '#64748b',
     icon: Settings,
     path: '/labs/beginner/misconfig'
