@@ -1,7 +1,7 @@
 # Zeroday Academy - Web Penetration Testing Training Platform
 
 ## Overview
-Zeroday Academy is a comprehensive web application security training platform designed to teach penetration testing through hands-on vulnerable labs. It offers two difficulty levels, Beginner (8 labs) and Intermediate (9 labs), covering essential OWASP Top 10 vulnerabilities, advanced exploitation techniques, and bypass methods. The platform aims to provide realistic, interactive learning experiences with integrated tools and detailed educational content for aspiring penetration testers.
+Zeroday Academy is a comprehensive web application security training platform designed to teach penetration testing through hands-on vulnerable labs. It offers two difficulty levels, Beginner (10 labs) and Intermediate (10 labs), covering essential OWASP Top 10 vulnerabilities, advanced exploitation techniques, and bypass methods. The platform provides realistic, standalone vulnerable web applications for each lab that users can exploit using tools like Burp Suite - no in-app solution reveals.
 
 ## User Preferences
 Preferred communication style: Simple, everyday language.
@@ -27,10 +27,11 @@ Preferred communication style: Simple, everyday language.
 - **Session Store**: PostgreSQL-based for Replit Auth.
 
 ### Key Features
-- **Lab Management**: 11 Beginner and 10 Intermediate labs with interactive components and progress tracking.
-- **Vulnerability Simulation**: Live, vulnerable endpoints for testing, configured for tools like Burp Suite.
-- **Educational Content**: Step-by-step walkthroughs, tool integration instructions, and command examples.
-- **Authentication & Authorization**: Replit Auth integration ensures secure user and session management, persisting user progress.
+- **Lab Management**: 10 Beginner and 10 Intermediate labs with standalone vulnerable web applications.
+- **Realistic Vulnerable Apps**: Each lab simulates a real-world website (banking portal, blog, healthcare system, etc.)
+- **No Solution Reveals**: Users must discover vulnerabilities using Burp Suite - flags appear in API responses when exploited.
+- **Dedicated Lab Pages**: Each lab has its own route at `/labs/beginner/{slug}` for immersive experience.
+- **Documentation**: Walkthroughs in `docs/BEGINNER_LABS_WALKTHROUGH.md` for reference.
 
 ### Deployment Strategy
 - **Development**: Replit integration with Vite hot reload; environment variables (`LAB_LEVEL`) for lab selection.
@@ -57,22 +58,27 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
-### December 16, 2025: Easy/Hard Mode Implementation
-**Dual Difficulty System Added:**
-All 11 beginner labs now feature Easy Mode and Hard Mode buttons with distinct visual themes:
+### December 20, 2025: Complete Beginner Labs Redesign
+**Standalone Vulnerable Web Applications:**
+All 10 beginner labs are now realistic, standalone vulnerable websites:
 
-1. **Easy Mode**: Direct access to vulnerable endpoints for learning fundamentals
-2. **Hard Mode**: WAF/filter protection requiring bypass techniques (implemented for 4 key labs):
-   - SQL Injection: Blocks common patterns (union, select, --, etc.) - requires encoding/case bypass
-   - XSS: Blocks script tags, event handlers - requires alternative payloads
-   - Command Injection: Blocks shell metacharacters (; | & etc.) - requires URL encoding
-   - Authentication Bypass: Blocks SQLi patterns - requires parameter pollution
+1. **SQL Injection** - SecureBank Online banking login portal
+2. **XSS** - TechBlog comment system with stored/reflected XSS
+3. **Authentication Bypass** - Admin control panel login
+4. **Command Injection** - Network diagnostics tool
+5. **Sensitive Data Exposure** - HealthCare Plus patient portal
+6. **XXE** - DocuFlow XML importer
+7. **Broken Access Control** - TechCorp HR Portal
+8. **Security Misconfiguration** - EcoShop e-commerce
+9. **API Data Leakage** - DevPortal API with debug mode
+10. **IDOR** - ShopMax order system
 
-**Visual Theme System:**
-Each vulnerability category has a unique color scheme:
-- SQL Injection: Red (#dc2626)
-- XSS: Orange (#f97316)
-- Command Injection: Rose (#f43f5e)
+**Architecture Changes:**
+- Each lab has dedicated route: `/labs/beginner/{slug}`
+- Backend API routes in `server/lab-routes.ts`
+- Flags embedded in API responses when vulnerabilities are exploited
+- No in-app solution buttons - users must use Burp Suite to find flags
+- Walkthroughs moved to `docs/BEGINNER_LABS_WALKTHROUGH.md`
 - Authentication: Yellow/Gold (#eab308)
 - Access Control: Lime (#84cc16)
 - API Security: Blue/Cyan/Violet variants
