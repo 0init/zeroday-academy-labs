@@ -5,9 +5,15 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-// Middleware to handle raw XML body for XXE lab
+// Middleware to handle raw XML body for XXE labs - MUST be before routes
 app.use('/api/vuln/xxe', express.raw({ type: ['application/xml', 'text/xml'], limit: '1mb' }));
 app.use('/api/vuln/xxe', express.text({ type: ['application/xml', 'text/xml'], limit: '1mb' }));
+app.use('/api/labs/xxe', express.raw({ type: ['application/xml', 'text/xml'], limit: '1mb' }));
+app.use('/api/labs/xxe', express.text({ type: ['application/xml', 'text/xml'], limit: '1mb' }));
+
+// Register new realistic lab routes BEFORE other routes (to avoid middleware ordering issues)
+import { registerLabRoutes } from "./lab-routes";
+registerLabRoutes(app);
 
 app.use((req, res, next) => {
   const start = Date.now();
@@ -53,6 +59,7 @@ app.use((req, res, next) => {
   // Import and register intermediate routes (pass the shared server)
   const { registerIntermediateRoutes } = await import("./intermediate-routes");
   await registerIntermediateRoutes(app, server);
+  
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
