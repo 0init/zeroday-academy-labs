@@ -875,7 +875,7 @@ export function registerLabRoutes(app: Express) {
   });
 
   // ==========================================
-  // SENSITIVE DATA EXPOSURE LAB - Enumeration Required
+  // SENSITIVE DATA EXPOSURE LAB - Real Vulnerable Portal
   // ==========================================
   const patientRecords: Record<string, any> = {
     'P001': { id: 'P001', name: 'John Smith', appointment: 'Jan 20, 2024', doctor: 'Dr. Wilson' },
@@ -886,12 +886,156 @@ export function registerLabRoutes(app: Express) {
   };
 
   const sensitiveRecords: Record<string, any> = {
-    'P001': { ssn: '123-45-6789', phone: '(555) 123-4567', bloodType: 'A+', allergies: ['Penicillin'], conditions: ['Hypertension'], insurance: { provider: 'BlueCross', policyNumber: 'BC-100001' } },
-    'P002': { ssn: '234-56-7890', phone: '(555) 234-5678', bloodType: 'B+', allergies: ['None'], conditions: ['Diabetes Type 2'], insurance: { provider: 'Aetna', policyNumber: 'AE-200002' } },
-    'P003': { ssn: '345-67-8901', phone: '(555) 345-6789', bloodType: 'O+', allergies: ['Latex', 'Sulfa'], conditions: ['None'], insurance: { provider: 'Cigna', policyNumber: 'CI-300003' } },
-    'P004': { ssn: '456-78-9012', phone: '(555) 456-7890', bloodType: 'AB+', allergies: ['None'], conditions: ['Asthma'], insurance: { provider: 'United', policyNumber: 'UH-400004' } },
-    'P005': { ssn: '567-89-0123', phone: '(555) 567-8901', bloodType: 'A-', allergies: ['Aspirin'], conditions: ['Heart Disease'], insurance: { provider: 'Kaiser', policyNumber: 'KP-500005' } },
+    'P001': { ssn: '123-45-6789', phone: '(555) 123-4567', bloodType: 'A+', allergies: ['Penicillin'], conditions: ['Hypertension'], insurance: { provider: 'BlueCross', policyNumber: 'BC-100001' }, creditCard: '4532-1111-2222-3333' },
+    'P002': { ssn: '234-56-7890', phone: '(555) 234-5678', bloodType: 'B+', allergies: ['None'], conditions: ['Diabetes Type 2'], insurance: { provider: 'Aetna', policyNumber: 'AE-200002' }, creditCard: '4532-4444-5555-6666' },
+    'P003': { ssn: '345-67-8901', phone: '(555) 345-6789', bloodType: 'O+', allergies: ['Latex', 'Sulfa'], conditions: ['None'], insurance: { provider: 'Cigna', policyNumber: 'CI-300003' }, creditCard: '4532-7777-8888-9999' },
+    'P004': { ssn: '456-78-9012', phone: '(555) 456-7890', bloodType: 'AB+', allergies: ['None'], conditions: ['Asthma'], insurance: { provider: 'United', policyNumber: 'UH-400004' }, creditCard: '4532-0000-1111-2222' },
+    'P005': { ssn: '567-89-0123', phone: '(555) 567-8901', bloodType: 'A-', allergies: ['Aspirin'], conditions: ['Heart Disease'], insurance: { provider: 'Kaiser', policyNumber: 'KP-500005' }, creditCard: '4532-3333-4444-5555' },
   };
+
+  const hardModeAttempts: Record<string, { count: number; resetTime: number }> = {};
+
+  // Easy Mode - Vulnerable Healthcare Portal HTML
+  app.get('/vuln/healthcare/portal', (_req: Request, res: Response) => {
+    const patientsHtml = Object.values(patientRecords).map(p => `
+      <tr>
+        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">${p.id}</td>
+        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">${p.name}</td>
+        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">${p.appointment}</td>
+        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">${p.doctor}</td>
+        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">
+          <a href="/vuln/healthcare/patient/${p.id}" style="color: #0d9488;">View</a>
+        </td>
+      </tr>
+    `).join('');
+
+    const html = `<!DOCTYPE html>
+<html>
+<head><title>HealthCare Plus</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, sans-serif; background: #f3f4f6; }
+  nav { background: #0d9488; padding: 15px 20px; color: white; }
+  .container { max-width: 1000px; margin: 30px auto; padding: 0 20px; }
+  .card { background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; padding: 12px; background: #f9fafb; border-bottom: 2px solid #e5e7eb; }
+</style>
+</head>
+<body>
+  <nav><b>+ HealthCare Plus</b></nav>
+  <div class="container">
+    <div class="card">
+      <div style="background: #0d9488; color: white; padding: 15px 20px;"><h2>Today's Appointments</h2></div>
+      <table><thead><tr><th>ID</th><th>Name</th><th>Appointment</th><th>Doctor</th><th>Actions</th></tr></thead>
+      <tbody>${patientsHtml}</tbody></table>
+    </div>
+  </div>
+  <!-- TODO: Remove before production -->
+  <!-- /api/healthcare/admin/patients - Full patient data -->
+  <!-- /api/healthcare/admin/export - Export records -->
+  <!-- /api/healthcare/backup - AWS credentials -->
+  <!-- Debug: healthcare_debug_2024 -->
+</body>
+</html>`;
+    res.setHeader('Content-Type', 'text/html');
+    res.send(html);
+  });
+
+  app.get('/vuln/healthcare/patient/:id', (req: Request, res: Response) => {
+    const patient = patientRecords[req.params.id.toUpperCase()];
+    if (!patient) return res.status(404).send('<h1>Not found</h1>');
+    const html = `<!DOCTYPE html><html><head><title>${patient.name}</title>
+<style>body{font-family:sans-serif;background:#f3f4f6;padding:40px;}
+.card{background:white;max-width:600px;margin:auto;padding:30px;border-radius:8px;}</style></head>
+<body><div class="card"><h2 style="color:#0d9488;">${patient.name}</h2>
+<p><b>ID:</b> ${patient.id}</p><p><b>Appointment:</b> ${patient.appointment}</p>
+<p><b>Doctor:</b> ${patient.doctor}</p>
+<p style="color:#888;margin-top:20px;">* Sensitive data requires admin access</p>
+<a href="/vuln/healthcare/portal">← Back</a></div></body></html>`;
+    res.setHeader('Content-Type', 'text/html');
+    res.send(html);
+  });
+
+  app.get('/api/healthcare/.internal-docs', (_req: Request, res: Response) => {
+    res.json({
+      endpoints: { admin: ['/api/healthcare/admin/patients', '/api/healthcare/admin/export'], 
+                   internal: ['/api/healthcare/backup', '/api/healthcare/debug'] },
+      flag: 'FLAG{INTERNAL_API_DOCS_DISCOVERED}'
+    });
+  });
+
+  app.get('/api/healthcare/admin/patients', (_req: Request, res: Response) => {
+    const allData = Object.keys(patientRecords).map(id => ({ ...patientRecords[id], ...sensitiveRecords[id] }));
+    res.json({ patients: allData, flag: 'FLAG{ADMIN_ENDPOINT_NO_AUTH}' });
+  });
+
+  app.get('/api/healthcare/admin/export', (_req: Request, res: Response) => {
+    const allData = Object.keys(patientRecords).map(id => ({ ...patientRecords[id], ...sensitiveRecords[id] }));
+    res.json({ patients: allData, flag: 'FLAG{ADMIN_EXPORT_EXPOSED}' });
+  });
+
+  app.get('/api/v1/patients/all', (_req: Request, res: Response) => {
+    const allData = Object.keys(patientRecords).map(id => ({ ...patientRecords[id], ...sensitiveRecords[id] }));
+    res.json({ deprecated: true, patients: allData, flag: 'FLAG{DEPRECATED_ENDPOINT_STILL_ACTIVE}' });
+  });
+
+  // Hard Mode - Secure Portal with bypass vulnerabilities
+  app.get('/vuln/healthcare-secure/portal', (_req: Request, res: Response) => {
+    const html = `<!DOCTYPE html><html><head><title>HealthCare Plus - Secure</title>
+<style>body{font-family:sans-serif;background:#f3f4f6;padding:40px;}
+.card{background:white;max-width:600px;margin:auto;padding:30px;border-radius:8px;}
+.badge{background:#22c55e;color:white;padding:4px 8px;border-radius:4px;font-size:12px;}</style></head>
+<body><div class="card"><h2>+ HealthCare Plus <span class="badge">SECURED</span></h2>
+<p style="margin:20px 0;">Protected portal with rate limiting and authentication.</p>
+<div style="background:#fef3c7;padding:15px;border-radius:6px;margin-top:20px;">
+<b>Security:</b><ul style="margin-left:20px;"><li>Rate limiting: 5 req/min</li>
+<li>Admin: X-Admin-Token header required</li><li>Export: session validation</li></ul></div>
+</div><!-- Admin token format: healthcare-admin-{year} --></body></html>`;
+    res.setHeader('Content-Type', 'text/html');
+    res.send(html);
+  });
+
+  app.get('/api/healthcare-secure/patient', (req: Request, res: Response) => {
+    const ip = req.ip || 'unknown';
+    const now = Date.now();
+    if (!hardModeAttempts[ip]) hardModeAttempts[ip] = { count: 0, resetTime: now + 60000 };
+    if (now > hardModeAttempts[ip].resetTime) hardModeAttempts[ip] = { count: 0, resetTime: now + 60000 };
+    hardModeAttempts[ip].count++;
+    if (hardModeAttempts[ip].count > 5) return res.status(429).json({ error: 'Rate limit exceeded' });
+    
+    const patient = patientRecords[(req.query.id as string || '').toUpperCase()];
+    if (!patient) return res.status(404).json({ error: 'Patient not found' });
+    res.json({ patient, rateLimit: { remaining: 5 - hardModeAttempts[ip].count } });
+  });
+
+  app.get('/api/healthcare-secure/admin/patients', (req: Request, res: Response) => {
+    const adminToken = req.headers['x-admin-token'] as string;
+    const xForwarded = req.headers['x-forwarded-for'] as string;
+    
+    if (xForwarded?.includes('127.0.0.1') || xForwarded?.includes('localhost')) {
+      const allData = Object.keys(patientRecords).map(id => ({ ...patientRecords[id], ...sensitiveRecords[id] }));
+      return res.json({ patients: allData, flag: 'FLAG{ADMIN_BYPASS_X_FORWARDED_FOR}' });
+    }
+    if (adminToken === 'healthcare-admin-2024' || adminToken === 'healthcare-admin-2025') {
+      const allData = Object.keys(patientRecords).map(id => ({ ...patientRecords[id], ...sensitiveRecords[id] }));
+      return res.json({ patients: allData, flag: 'FLAG{ADMIN_TOKEN_GUESSED}' });
+    }
+    res.status(401).json({ error: 'Unauthorized', message: 'Valid X-Admin-Token required' });
+  });
+
+  app.get('/api/healthcare-secure/export', (req: Request, res: Response) => {
+    const authHeader = req.headers['authorization'] as string;
+    if (authHeader?.startsWith('Bearer ')) {
+      const allData = Object.keys(patientRecords).map(id => ({ ...patientRecords[id], ...sensitiveRecords[id] }));
+      return res.json({ patients: allData, flag: 'FLAG{EXPORT_BYPASS_BEARER_ANY}' });
+    }
+    if (req.query.admin === 'true' || req.query.role === 'admin') {
+      const allData = Object.keys(patientRecords).map(id => ({ ...patientRecords[id], ...sensitiveRecords[id] }));
+      return res.json({ patients: allData, flag: 'FLAG{EXPORT_BYPASS_ADMIN_PARAM}' });
+    }
+    res.status(403).json({ error: 'Forbidden' });
+  });
 
   app.get('/api/labs/sensitive/appointments', (_req: Request, res: Response) => {
     const appointments = Object.values(patientRecords).map(p => ({

