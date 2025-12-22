@@ -15,6 +15,8 @@ export default function XssLabPage() {
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResult, setSearchResult] = useState('');
+  const [storedXssFlag, setStoredXssFlag] = useState('');
+  const [reflectedXssFlag, setReflectedXssFlag] = useState('');
 
   useEffect(() => {
     fetchComments();
@@ -46,6 +48,9 @@ export default function XssLabPage() {
         setName('');
         setComment('');
         fetchComments();
+        if (data.flag) {
+          setStoredXssFlag(data.flag);
+        }
       }
     } catch (err) {
       console.error('Failed to post comment');
@@ -60,6 +65,9 @@ export default function XssLabPage() {
       const response = await fetch(`/api/labs/xss/search?q=${encodeURIComponent(searchQuery)}`);
       const data = await response.json();
       setSearchResult(data.html || '');
+      if (data.flag) {
+        setReflectedXssFlag(data.flag);
+      }
     } catch (err) {
       console.error('Search failed');
     }
@@ -115,6 +123,13 @@ export default function XssLabPage() {
             <div className="bg-white rounded-lg shadow-md mt-8 p-6">
               <h2 className="text-xl font-bold text-gray-900 mb-6">Comments ({comments.length})</h2>
               
+              {storedXssFlag && (
+                <div className="bg-green-100 border border-green-300 rounded-lg p-4 mb-6">
+                  <h3 className="text-green-800 font-semibold">Stored XSS Successful!</h3>
+                  <p className="text-green-700 font-mono text-sm mt-1">{storedXssFlag}</p>
+                </div>
+              )}
+
               <form onSubmit={handleSubmitComment} className="mb-8 border-b pb-6">
                 <h3 className="text-gray-700 font-medium mb-4">Leave a comment</h3>
                 <div className="space-y-4">
@@ -189,6 +204,12 @@ export default function XssLabPage() {
                   </button>
                 </div>
               </form>
+              {reflectedXssFlag && (
+                <div className="mt-4 bg-green-100 border border-green-300 rounded p-3">
+                  <p className="text-green-800 font-semibold text-sm">Reflected XSS Successful!</p>
+                  <p className="text-green-700 font-mono text-xs mt-1">{reflectedXssFlag}</p>
+                </div>
+              )}
               {searchResult && (
                 <div 
                   className="mt-4 p-3 bg-gray-50 rounded text-sm"
