@@ -1,9 +1,11 @@
 import express, { type Request, Response, NextFunction } from "express";
+import cookieParser from "cookie-parser";
 import { setupVite, serveStatic, log } from "./vite";
 
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+app.use(cookieParser());
 
 // Middleware to handle raw XML body for XXE labs - MUST be before routes
 app.use('/api/vuln/xxe', express.raw({ type: ['application/xml', 'text/xml'], limit: '1mb' }));

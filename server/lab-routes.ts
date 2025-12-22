@@ -1244,16 +1244,400 @@ Response: Connection established to internal service`;
   });
 
   // ==========================================
-  // ACCESS CONTROL LAB
+  // ACCESS CONTROL LAB - Real Vulnerable HR Portal
   // ==========================================
   const employees = [
-    { id: 1, username: 'ceo', firstName: 'James', lastName: 'Harrison', title: 'Chief Executive Officer', department: 'Executive', role: 'admin', salary: 500000, bonusPercent: 50, ssn: '100-50-1001', email: 'james.harrison@corp.com', manager: 'Board of Directors' },
-    { id: 2, username: 'cfo', firstName: 'Linda', lastName: 'Chen', title: 'Chief Financial Officer', department: 'Finance', role: 'admin', salary: 400000, bonusPercent: 40, ssn: '100-50-1002', email: 'linda.chen@corp.com', manager: 'James Harrison' },
-    { id: 3, username: 'hr_director', firstName: 'Robert', lastName: 'Williams', title: 'HR Director', department: 'Human Resources', role: 'manager', salary: 180000, bonusPercent: 25, ssn: '100-50-1003', email: 'robert.williams@corp.com', manager: 'James Harrison' },
-    { id: 10, username: 'john_doe', firstName: 'John', lastName: 'Doe', title: 'Software Developer', department: 'Engineering', role: 'employee', salary: 95000, bonusPercent: 10, email: 'john.doe@corp.com', manager: 'Sarah Miller' },
-    { id: 15, username: 'jane_smith', firstName: 'Jane', lastName: 'Smith', title: 'Marketing Specialist', department: 'Marketing', role: 'employee', salary: 75000, bonusPercent: 8, email: 'jane.smith@corp.com', manager: 'Mike Johnson' },
+    { id: 1, username: 'ceo', firstName: 'James', lastName: 'Harrison', title: 'Chief Executive Officer', department: 'Executive', role: 'admin', salary: 500000, bonusPercent: 50, ssn: '100-50-1001', email: 'james.harrison@corp.com', manager: 'Board of Directors', bankAccount: '****4521', performance: 'Exceeds Expectations' },
+    { id: 2, username: 'cfo', firstName: 'Linda', lastName: 'Chen', title: 'Chief Financial Officer', department: 'Finance', role: 'admin', salary: 400000, bonusPercent: 40, ssn: '100-50-1002', email: 'linda.chen@corp.com', manager: 'James Harrison', bankAccount: '****7832', performance: 'Exceeds Expectations' },
+    { id: 3, username: 'hr_director', firstName: 'Robert', lastName: 'Williams', title: 'HR Director', department: 'Human Resources', role: 'manager', salary: 180000, bonusPercent: 25, ssn: '100-50-1003', email: 'robert.williams@corp.com', manager: 'James Harrison', bankAccount: '****9156', performance: 'Meets Expectations' },
+    { id: 4, username: 'it_admin', firstName: 'Mike', lastName: 'Brown', title: 'IT Administrator', department: 'IT', role: 'admin', salary: 120000, bonusPercent: 15, ssn: '100-50-1004', email: 'mike.brown@corp.com', manager: 'Sarah Miller', bankAccount: '****3344', performance: 'Meets Expectations' },
+    { id: 10, username: 'john_doe', firstName: 'John', lastName: 'Doe', title: 'Software Developer', department: 'Engineering', role: 'employee', salary: 95000, bonusPercent: 10, ssn: '100-50-1010', email: 'john.doe@corp.com', manager: 'Sarah Miller', bankAccount: '****5566', performance: 'Meets Expectations' },
+    { id: 15, username: 'jane_smith', firstName: 'Jane', lastName: 'Smith', title: 'Marketing Specialist', department: 'Marketing', role: 'employee', salary: 75000, bonusPercent: 8, ssn: '100-50-1015', email: 'jane.smith@corp.com', manager: 'Mike Johnson', bankAccount: '****7788', performance: 'Needs Improvement' },
   ];
 
+  // Easy Mode - Vulnerable HR Portal (served as HTML)
+  app.get('/vuln/hr/portal', (_req: Request, res: Response) => {
+    const html = `<!DOCTYPE html>
+<html>
+<head><title>TechCorp HR Portal</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, sans-serif; background: #f1f5f9; }
+  nav { background: linear-gradient(135deg, #1e40af, #3b82f6); padding: 15px 20px; color: white; display: flex; justify-content: space-between; align-items: center; }
+  .nav-brand { font-size: 20px; font-weight: bold; }
+  .nav-user { display: flex; align-items: center; gap: 10px; }
+  .avatar { width: 36px; height: 36px; background: rgba(255,255,255,0.2); border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+  .container { max-width: 1000px; margin: 30px auto; padding: 0 20px; }
+  .sidebar { background: white; border-radius: 8px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+  .sidebar h3 { color: #1e293b; margin-bottom: 15px; font-size: 14px; text-transform: uppercase; }
+  .sidebar a { display: block; padding: 10px 15px; color: #475569; text-decoration: none; border-radius: 6px; margin-bottom: 5px; }
+  .sidebar a:hover { background: #f1f5f9; }
+  .sidebar a.active { background: #dbeafe; color: #1e40af; }
+  .card { background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden; }
+  .card-header { background: linear-gradient(135deg, #1e40af, #3b82f6); color: white; padding: 20px; }
+  .card-body { padding: 25px; }
+  .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .info-item { margin-bottom: 15px; }
+  .info-label { font-size: 12px; color: #64748b; text-transform: uppercase; margin-bottom: 4px; }
+  .info-value { font-size: 16px; color: #1e293b; }
+  .sensitive { background: #fef3c7; padding: 20px; border-radius: 8px; margin-top: 20px; }
+  .sensitive h4 { color: #92400e; margin-bottom: 15px; }
+  .lookup-form { margin-top: 20px; padding-top: 20px; border-top: 1px solid #e2e8f0; }
+  .lookup-form input { padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; width: 100px; }
+  .lookup-form button { padding: 10px 20px; background: #1e40af; color: white; border: none; border-radius: 6px; cursor: pointer; }
+  .grid-layout { display: grid; grid-template-columns: 250px 1fr; gap: 20px; }
+</style>
+</head>
+<body>
+  <nav>
+    <div class="nav-brand">TechCorp HR Portal</div>
+    <div class="nav-user">
+      <span>John Doe (Employee)</span>
+      <div class="avatar">JD</div>
+    </div>
+  </nav>
+  <div class="container">
+    <div class="grid-layout">
+      <div class="sidebar">
+        <h3>Navigation</h3>
+        <a href="/vuln/hr/profile/10" class="active">My Profile</a>
+        <a href="/vuln/hr/directory">Employee Directory</a>
+        <a href="#">Time Off</a>
+        <a href="#">Payroll</a>
+        <div class="lookup-form">
+          <h4 style="color: #475569; font-size: 12px; margin-bottom: 10px;">QUICK LOOKUP</h4>
+          <form action="/vuln/hr/profile/" method="get" onsubmit="window.location='/vuln/hr/profile/'+document.getElementById('empId').value; return false;">
+            <input type="text" id="empId" placeholder="ID..." />
+            <button type="submit">View</button>
+          </form>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <h2>Welcome, John Doe</h2>
+          <p style="opacity: 0.8;">Your employee profile and information</p>
+        </div>
+        <div class="card-body">
+          <div class="info-grid">
+            <div class="info-item"><div class="info-label">Employee ID</div><div class="info-value">10</div></div>
+            <div class="info-item"><div class="info-label">Email</div><div class="info-value">john.doe@corp.com</div></div>
+            <div class="info-item"><div class="info-label">Title</div><div class="info-value">Software Developer</div></div>
+            <div class="info-item"><div class="info-label">Department</div><div class="info-value">Engineering</div></div>
+            <div class="info-item"><div class="info-label">Manager</div><div class="info-value">Sarah Miller</div></div>
+            <div class="info-item"><div class="info-label">Role</div><div class="info-value">Employee</div></div>
+          </div>
+          <p style="color: #64748b; margin-top: 20px; font-size: 14px;">
+            Use Quick Lookup to view other employee profiles. Try IDs: 1, 2, 3, 4, 15
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- Employee IDs: 1=CEO, 2=CFO, 3=HR Director, 4=IT Admin, 10=You, 15=Jane -->
+  <!-- Admin panel: /vuln/hr/admin/employees -->
+</body>
+</html>`;
+    res.setHeader('Content-Type', 'text/html');
+    res.send(html);
+  });
+
+  // Employee profile page - IDOR vulnerable
+  app.get('/vuln/hr/profile/:id', (req: Request, res: Response) => {
+    const userId = parseInt(req.params.id);
+    const employee = employees.find(e => e.id === userId);
+    
+    if (!employee) {
+      return res.send(`<!DOCTYPE html><html><head><title>Not Found</title></head><body style="font-family:sans-serif;padding:50px;text-align:center;"><h1>Employee Not Found</h1><p>ID ${userId} does not exist.</p><a href="/vuln/hr/portal">Back to Portal</a></body></html>`);
+    }
+    
+    const isOwnProfile = userId === 10;
+    const isPrivilegedUser = employee.role === 'admin' || employee.role === 'manager';
+    
+    let flag = '';
+    let flagHtml = '';
+    if (!isOwnProfile) {
+      flag = isPrivilegedUser ? 'FLAG{IDOR_PRIVILEGE_ESCALATION}' : 'FLAG{IDOR_HORIZONTAL_ACCESS}';
+      flagHtml = `<div style="background:#fef2f2;border:1px solid #fecaca;padding:15px;border-radius:8px;margin-top:20px;">
+        <strong style="color:#991b1b;">Access Violation Detected!</strong>
+        <p style="color:#dc2626;margin-top:5px;">You (Employee #10) accessed Employee #${userId}'s confidential data</p>
+        <p style="color:#991b1b;font-family:monospace;margin-top:10px;">${flag}</p>
+      </div>`;
+    }
+
+    const html = `<!DOCTYPE html>
+<html>
+<head><title>${employee.firstName} ${employee.lastName} - TechCorp HR</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, sans-serif; background: #f1f5f9; }
+  nav { background: linear-gradient(135deg, #1e40af, #3b82f6); padding: 15px 20px; color: white; }
+  .container { max-width: 800px; margin: 30px auto; padding: 0 20px; }
+  .card { background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden; }
+  .card-header { background: linear-gradient(135deg, #1e40af, #3b82f6); color: white; padding: 25px; display: flex; align-items: center; gap: 20px; }
+  .avatar { width: 80px; height: 80px; background: rgba(255,255,255,0.2); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 28px; }
+  .card-body { padding: 25px; }
+  .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .info-item { margin-bottom: 15px; }
+  .info-label { font-size: 12px; color: #64748b; text-transform: uppercase; margin-bottom: 4px; }
+  .info-value { font-size: 16px; color: #1e293b; }
+  .sensitive { background: #fef3c7; padding: 20px; border-radius: 8px; margin-top: 25px; border: 1px solid #fcd34d; }
+  .sensitive h4 { color: #92400e; margin-bottom: 15px; display: flex; align-items: center; gap: 8px; }
+  .role-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+  .role-admin { background: #fee2e2; color: #991b1b; }
+  .role-manager { background: #dbeafe; color: #1e40af; }
+  .role-employee { background: #dcfce7; color: #166534; }
+  a { color: #1e40af; }
+</style>
+</head>
+<body>
+  <nav><b>TechCorp HR Portal</b> - Employee Profile</nav>
+  <div class="container">
+    <p style="margin-bottom: 20px;"><a href="/vuln/hr/portal">← Back to Portal</a></p>
+    <div class="card">
+      <div class="card-header">
+        <div class="avatar">${employee.firstName.charAt(0)}${employee.lastName.charAt(0)}</div>
+        <div>
+          <h2>${employee.firstName} ${employee.lastName}</h2>
+          <p style="opacity:0.8;">${employee.title}</p>
+          <span class="role-badge role-${employee.role}">${employee.role.toUpperCase()}</span>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="info-grid">
+          <div class="info-item"><div class="info-label">Employee ID</div><div class="info-value">${employee.id}</div></div>
+          <div class="info-item"><div class="info-label">Email</div><div class="info-value">${employee.email}</div></div>
+          <div class="info-item"><div class="info-label">Department</div><div class="info-value">${employee.department}</div></div>
+          <div class="info-item"><div class="info-label">Manager</div><div class="info-value">${employee.manager}</div></div>
+          <div class="info-item"><div class="info-label">Performance</div><div class="info-value">${employee.performance}</div></div>
+          <div class="info-item"><div class="info-label">Role Level</div><div class="info-value">${employee.role}</div></div>
+        </div>
+        <div class="sensitive">
+          <h4>Confidential Compensation Data</h4>
+          <div class="info-grid">
+            <div class="info-item"><div class="info-label">Annual Salary</div><div class="info-value" style="color:#166534;font-size:20px;">$${employee.salary.toLocaleString()}</div></div>
+            <div class="info-item"><div class="info-label">Bonus Target</div><div class="info-value">${employee.bonusPercent}%</div></div>
+            <div class="info-item"><div class="info-label">SSN</div><div class="info-value" style="font-family:monospace;">${employee.ssn}</div></div>
+            <div class="info-item"><div class="info-label">Bank Account</div><div class="info-value">${employee.bankAccount}</div></div>
+          </div>
+        </div>
+        ${flagHtml}
+      </div>
+    </div>
+  </div>
+</body>
+</html>`;
+    res.setHeader('Content-Type', 'text/html');
+    res.send(html);
+  });
+
+  // Employee directory - exposed without auth
+  app.get('/vuln/hr/directory', (_req: Request, res: Response) => {
+    const rows = employees.map(e => `
+      <tr>
+        <td style="padding:12px;border-bottom:1px solid #e2e8f0;">${e.id}</td>
+        <td style="padding:12px;border-bottom:1px solid #e2e8f0;">${e.firstName} ${e.lastName}</td>
+        <td style="padding:12px;border-bottom:1px solid #e2e8f0;">${e.title}</td>
+        <td style="padding:12px;border-bottom:1px solid #e2e8f0;">${e.department}</td>
+        <td style="padding:12px;border-bottom:1px solid #e2e8f0;"><span style="padding:2px 8px;background:${e.role==='admin'?'#fee2e2':e.role==='manager'?'#dbeafe':'#dcfce7'};border-radius:10px;font-size:12px;">${e.role}</span></td>
+        <td style="padding:12px;border-bottom:1px solid #e2e8f0;"><a href="/vuln/hr/profile/${e.id}" style="color:#1e40af;">View</a></td>
+      </tr>
+    `).join('');
+    
+    const html = `<!DOCTYPE html>
+<html><head><title>Employee Directory - TechCorp HR</title>
+<style>body{font-family:sans-serif;background:#f1f5f9;} nav{background:linear-gradient(135deg,#1e40af,#3b82f6);padding:15px 20px;color:white;} .container{max-width:1000px;margin:30px auto;padding:0 20px;} table{width:100%;background:white;border-radius:8px;border-collapse:collapse;box-shadow:0 1px 3px rgba(0,0,0,0.1);} th{text-align:left;padding:15px;background:#f8fafc;border-bottom:2px solid #e2e8f0;font-size:12px;text-transform:uppercase;color:#64748b;}</style>
+</head><body>
+<nav><b>TechCorp HR Portal</b> - Employee Directory</nav>
+<div class="container">
+<p style="margin-bottom:20px;"><a href="/vuln/hr/portal" style="color:#1e40af;">← Back to Portal</a></p>
+<table><thead><tr><th>ID</th><th>Name</th><th>Title</th><th>Department</th><th>Role</th><th>Action</th></tr></thead>
+<tbody>${rows}</tbody></table>
+<div style="background:#fef3c7;padding:15px;border-radius:8px;margin-top:20px;border:1px solid #fcd34d;">
+<strong style="color:#92400e;">FLAG{DIRECTORY_ENUMERATION_ENABLED}</strong>
+<p style="color:#92400e;margin-top:5px;">Full employee directory exposed - reveals all IDs for IDOR attacks</p>
+</div>
+</div></body></html>`;
+    res.setHeader('Content-Type', 'text/html');
+    res.send(html);
+  });
+
+  // Hidden admin endpoint
+  app.get('/vuln/hr/admin/employees', (_req: Request, res: Response) => {
+    const allData = employees.map(e => ({ ...e }));
+    res.json({
+      employees: allData,
+      totalSalaries: employees.reduce((sum, e) => sum + e.salary, 0),
+      flag: 'FLAG{ADMIN_PANEL_NO_AUTH}'
+    });
+  });
+
+  // Hard Mode - Secure HR Portal with bypass vulnerabilities
+  app.get('/vuln/hr-secure/portal', (_req: Request, res: Response) => {
+    const html = `<!DOCTYPE html>
+<html>
+<head><title>TechCorp HR Portal - Secure</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, sans-serif; background: #f1f5f9; }
+  nav { background: linear-gradient(135deg, #1e40af, #3b82f6); padding: 15px 20px; color: white; display: flex; justify-content: space-between; }
+  .secure-badge { background: #22c55e; padding: 4px 10px; border-radius: 4px; font-size: 12px; margin-left: 10px; }
+  .container { max-width: 800px; margin: 30px auto; padding: 0 20px; }
+  .card { background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); padding: 25px; }
+  .security-info { background: #dbeafe; border: 1px solid #93c5fd; border-radius: 8px; padding: 20px; margin-top: 20px; }
+  .security-info h4 { color: #1e40af; margin-bottom: 10px; }
+  .security-info ul { margin-left: 20px; color: #1e3a8a; }
+</style>
+</head>
+<body>
+<nav>
+  <div><b>TechCorp HR Portal</b><span class="secure-badge">SECURED</span></div>
+  <div>John Doe (Employee) - Session: emp_session_10</div>
+</nav>
+<div class="container">
+  <div class="card">
+    <h2 style="color:#1e293b;margin-bottom:15px;">Welcome to Secured HR Portal</h2>
+    <p style="color:#64748b;">This portal has role-based access controls and session validation.</p>
+    
+    <div class="security-info">
+      <h4>Security Measures Active:</h4>
+      <ul>
+        <li>Role-based access control (RBAC)</li>
+        <li>Session cookie validation</li>
+        <li>Admin endpoints require X-HR-Role header</li>
+        <li>Salary data requires manager/admin role</li>
+      </ul>
+    </div>
+    
+    <div style="margin-top:25px;">
+      <h4 style="color:#1e293b;margin-bottom:10px;">Try These Endpoints:</h4>
+      <ul style="color:#475569;margin-left:20px;">
+        <li><code>/api/hr-secure/profile/1</code> - CEO profile (should be blocked)</li>
+        <li><code>/api/hr-secure/employees</code> - All employees (admin only)</li>
+        <li><code>/api/hr-secure/salaries</code> - Salary report (manager only)</li>
+      </ul>
+    </div>
+  </div>
+</div>
+<!-- Session format: emp_session_{userId} -->
+<!-- Role header: X-HR-Role: admin|manager|employee -->
+<!-- Admin cookie bypass: hr_role=admin -->
+</body>
+</html>`;
+    res.setHeader('Content-Type', 'text/html');
+    res.send(html);
+  });
+
+  // Hard mode - Profile with role check (bypassable)
+  app.get('/api/hr-secure/profile/:id', (req: Request, res: Response) => {
+    const userId = parseInt(req.params.id);
+    const sessionCookie = req.cookies?.hr_session as string || '';
+    const roleCookie = req.cookies?.hr_role as string;
+    const roleHeader = req.headers['x-hr-role'] as string;
+    const forwardedUser = req.headers['x-forwarded-user'] as string;
+    
+    const employee = employees.find(e => e.id === userId);
+    if (!employee) {
+      return res.status(404).json({ error: 'Employee not found' });
+    }
+    
+    // Extract session user ID (format: emp_session_10)
+    const sessionMatch = sessionCookie.match(/emp_session_(\d+)/);
+    const sessionUserId = sessionMatch ? parseInt(sessionMatch[1]) : 10;
+    
+    // Bypass 1: X-Forwarded-User header
+    if (forwardedUser) {
+      return res.json({
+        user: employee,
+        flag: 'FLAG{RBAC_BYPASS_FORWARDED_USER}'
+      });
+    }
+    
+    // Bypass 2: Role cookie manipulation
+    if (roleCookie === 'admin' || roleCookie === 'manager') {
+      return res.json({
+        user: employee,
+        flag: 'FLAG{RBAC_BYPASS_ROLE_COOKIE}'
+      });
+    }
+    
+    // Bypass 3: X-HR-Role header
+    if (roleHeader === 'admin' || roleHeader === 'manager') {
+      return res.json({
+        user: employee,
+        flag: 'FLAG{RBAC_BYPASS_ROLE_HEADER}'
+      });
+    }
+    
+    // Normal access check
+    if (userId !== sessionUserId) {
+      return res.status(403).json({
+        error: 'Access denied',
+        message: `You (Employee #${sessionUserId}) cannot access Employee #${userId}'s profile`,
+        hint: 'Only managers and admins can view other profiles'
+      });
+    }
+    
+    return res.json({ user: employee });
+  });
+
+  // Hard mode - Employee list (admin only, bypassable)
+  app.get('/api/hr-secure/employees', (req: Request, res: Response) => {
+    const roleHeader = req.headers['x-hr-role'] as string;
+    const roleCookie = req.cookies?.hr_role as string;
+    const referer = req.headers['referer'] as string;
+    
+    // Bypass 1: Referer check bypass
+    if (referer?.includes('/admin') || referer?.includes('/hr-admin')) {
+      return res.json({
+        employees: employees.map(e => ({ ...e })),
+        flag: 'FLAG{RBAC_BYPASS_REFERER}'
+      });
+    }
+    
+    // Bypass 2: Role header/cookie
+    if (roleHeader === 'admin' || roleCookie === 'admin') {
+      return res.json({
+        employees: employees.map(e => ({ ...e })),
+        flag: roleHeader ? 'FLAG{EMPLOYEES_BYPASS_ROLE_HEADER}' : 'FLAG{EMPLOYEES_BYPASS_ROLE_COOKIE}'
+      });
+    }
+    
+    return res.status(403).json({
+      error: 'Access denied',
+      message: 'Admin role required to view all employees'
+    });
+  });
+
+  // Hard mode - Salary report (manager only, bypassable)
+  app.get('/api/hr-secure/salaries', (req: Request, res: Response) => {
+    const roleHeader = req.headers['x-hr-role'] as string;
+    const authHeader = req.headers['authorization'] as string;
+    
+    // Bypass 1: Any Bearer token
+    if (authHeader?.startsWith('Bearer ')) {
+      return res.json({
+        salaries: employees.map(e => ({ id: e.id, name: `${e.firstName} ${e.lastName}`, salary: e.salary, bonus: e.bonusPercent })),
+        total: employees.reduce((sum, e) => sum + e.salary, 0),
+        flag: 'FLAG{SALARY_BYPASS_BEARER_TOKEN}'
+      });
+    }
+    
+    // Bypass 2: Role header
+    if (roleHeader === 'manager' || roleHeader === 'admin') {
+      return res.json({
+        salaries: employees.map(e => ({ id: e.id, name: `${e.firstName} ${e.lastName}`, salary: e.salary, bonus: e.bonusPercent })),
+        total: employees.reduce((sum, e) => sum + e.salary, 0),
+        flag: 'FLAG{SALARY_BYPASS_ROLE_HEADER}'
+      });
+    }
+    
+    return res.status(403).json({
+      error: 'Access denied',
+      message: 'Manager or admin role required to view salary data'
+    });
+  });
+
+  // Legacy API endpoint
   app.get('/api/labs/access/users/:id', (req: Request, res: Response) => {
     const userId = parseInt(req.params.id);
     const currentUserId = 10;
