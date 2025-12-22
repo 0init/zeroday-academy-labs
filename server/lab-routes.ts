@@ -3,6 +3,10 @@ import jwt from 'jsonwebtoken';
 import { XMLParser } from 'fast-xml-parser';
 import * as fs from 'fs';
 import * as path from 'path';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+
+const execAsync = promisify(exec);
 
 const xssComments: any[] = [
   { id: 1, author: 'Alice', content: 'Great article! Very informative.', timestamp: '2 hours ago', avatar: 'A' },
@@ -715,56 +719,159 @@ export function registerLabRoutes(app: Express) {
   });
 
   // ==========================================
-  // COMMAND INJECTION LAB
+  // COMMAND INJECTION LAB - Real Command Execution
   // ==========================================
-  app.post('/api/labs/cmdi/ping', (req: Request, res: Response) => {
+
+  // Basic mode - No filtering, direct command injection
+  app.post('/api/labs/cmdi/ping', async (req: Request, res: Response) => {
     const { host } = req.body;
     
-    const cmdiPatterns = [/;/, /\|/, /&/, /\$\(/, /`/];
-    const hasCmdi = cmdiPatterns.some(p => p.test(host));
+    if (!host) {
+      return res.status(400).json({ error: 'Host parameter required' });
+    }
+
+    // Construct the vulnerable command - user input directly interpolated
+    const command = `ping -c 2 ${host}`;
     
-    if (hasCmdi) {
-      let injectedOutput = '';
-      if (/;.*cat.*\/etc\/passwd/i.test(host) || /\|.*cat.*\/etc\/passwd/i.test(host)) {
-        injectedOutput = `\nroot:x:0:0:root:/root:/bin/bash
-daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin
-www-data:x:33:33:www-data:/var/www:/usr/sbin/nologin
-admin:x:1000:1000:admin:/home/admin:/bin/bash`;
-      } else if (/;.*ls/i.test(host) || /\|.*ls/i.test(host)) {
-        injectedOutput = `\napp.js
-config.json
-database.sqlite
-secrets.txt
-FLAG_cmdi_rce.txt`;
-      } else if (/;.*id/i.test(host) || /\|.*id/i.test(host)) {
-        injectedOutput = `\nuid=33(www-data) gid=33(www-data) groups=33(www-data)`;
-      } else if (/;.*whoami/i.test(host) || /\|.*whoami/i.test(host)) {
-        injectedOutput = `\nwww-data`;
-      } else {
-        injectedOutput = `\n[Command executed successfully]`;
+    try {
+      const { stdout, stderr } = await execAsync(command, { 
+        timeout: 10000,
+        maxBuffer: 1024 * 100
+      });
+      
+      const cmdiPatterns = [/;/, /\|/, /&/, /\$\(/, /`/, /\n/];
+      const hasCmdi = cmdiPatterns.some(p => p.test(host));
+      
+      return res.json({
+        output: `$ ${command}\n\n${stdout}${stderr ? '\n' + stderr : ''}`,
+        stats: { sent: 2, received: 2, loss: 0, latency: 0.1 },
+        flag: hasCmdi ? 'FLAG{COMMAND_INJECTION_RCE}' : undefined
+      });
+    } catch (error: any) {
+      const cmdiPatterns = [/;/, /\|/, /&/, /\$\(/, /`/, /\n/];
+      const hasCmdi = cmdiPatterns.some(p => p.test(host));
+      
+      return res.json({
+        output: `$ ${command}\n\n${error.stdout || ''}${error.stderr || error.message}`,
+        stats: { sent: 2, received: 0, loss: 100, latency: 0 },
+        flag: hasCmdi ? 'FLAG{COMMAND_INJECTION_RCE}' : undefined
+      });
+    }
+  });
+
+  // Advanced mode - Has filtering that can be bypassed
+  app.post('/api/labs/cmdi/ping-advanced', async (req: Request, res: Response) => {
+    const { host } = req.body;
+    
+    if (!host) {
+      return res.status(400).json({ error: 'Host parameter required' });
+    }
+
+    // Basic filter - blocks common injection characters (but can be bypassed!)
+    const blockedPatterns = [';', '|', '&', '$(', '`'];
+    const blocked = blockedPatterns.some(p => host.includes(p));
+    
+    if (blocked) {
+      return res.status(400).json({
+        error: 'Invalid characters detected in hostname',
+        message: 'Security filter triggered: potentially dangerous characters blocked',
+        blocked: blockedPatterns.filter(p => host.includes(p))
+      });
+    }
+
+    // Vulnerable command - can still be bypassed with newlines, $IFS, etc.
+    const command = `ping -c 2 ${host}`;
+    
+    try {
+      const { stdout, stderr } = await execAsync(command, { 
+        timeout: 10000,
+        maxBuffer: 1024 * 100
+      });
+      
+      return res.json({
+        output: `$ ${command}\n\n${stdout}${stderr ? '\n' + stderr : ''}`,
+        stats: { sent: 2, received: 2, loss: 0, latency: 0.1 },
+        mode: 'advanced',
+        filterActive: true
+      });
+    } catch (error: any) {
+      // Check for bypass techniques
+      const bypassPatterns = [
+        /\n/,           // Newline injection
+        /\$IFS/i,       // Internal Field Separator
+        /\$\{IFS\}/i,   // IFS with braces
+        /%0a/i,         // URL-encoded newline
+        /\x0a/,         // Hex newline
+      ];
+      const hasBypass = bypassPatterns.some(p => p.test(host));
+      
+      let flag = undefined;
+      if (hasBypass && (error.stdout?.includes('uid=') || error.stdout?.includes('/bin/') || error.stderr)) {
+        flag = 'FLAG{CMDI_FILTER_BYPASS_NEWLINE}';
       }
       
       return res.json({
-        output: `PING ${host.split(/[;&|]/)[0]} (127.0.0.1): 56 data bytes
-64 bytes from 127.0.0.1: icmp_seq=0 ttl=64 time=0.1 ms
-64 bytes from 127.0.0.1: icmp_seq=1 ttl=64 time=0.1 ms${injectedOutput}`,
-        stats: { sent: 4, received: 4, loss: 0, latency: 0.1 },
-        flag: 'FLAG{COMMAND_INJECTION_RCE}'
+        output: `$ ${command}\n\n${error.stdout || ''}${error.stderr || error.message}`,
+        stats: { sent: 2, received: 0, loss: 100, latency: 0 },
+        mode: 'advanced',
+        filterActive: true,
+        flag
       });
     }
-    
-    return res.json({
-      output: `PING ${host} (8.8.8.8): 56 data bytes
-64 bytes from 8.8.8.8: icmp_seq=0 ttl=117 time=14.2 ms
-64 bytes from 8.8.8.8: icmp_seq=1 ttl=117 time=13.8 ms
-64 bytes from 8.8.8.8: icmp_seq=2 ttl=117 time=14.1 ms
-64 bytes from 8.8.8.8: icmp_seq=3 ttl=117 time=13.9 ms
+  });
 
---- ${host} ping statistics ---
-4 packets transmitted, 4 packets received, 0.0% packet loss
-round-trip min/avg/max/stddev = 13.8/14.0/14.2/0.2 ms`,
-      stats: { sent: 4, received: 4, loss: 0, latency: 14.0 }
-    });
+  // Super advanced - More sophisticated filtering
+  app.post('/api/labs/cmdi/ping-expert', async (req: Request, res: Response) => {
+    const { host } = req.body;
+    
+    if (!host) {
+      return res.status(400).json({ error: 'Host parameter required' });
+    }
+
+    // Advanced filter - blocks more patterns
+    const blockedStrings = [';', '|', '&', '$(', '`', '\n', '%0a', 'cat', 'ls', 'id', 'whoami', 'bash', 'sh', '/etc', '/bin'];
+    const foundBlocked = blockedStrings.filter(p => host.toLowerCase().includes(p.toLowerCase()));
+    
+    if (foundBlocked.length > 0) {
+      return res.status(400).json({
+        error: 'Security violation detected',
+        message: 'WAF blocked your request - suspicious patterns detected',
+        blocked: foundBlocked
+      });
+    }
+
+    const command = `ping -c 2 ${host}`;
+    
+    try {
+      const { stdout, stderr } = await execAsync(command, { 
+        timeout: 10000,
+        maxBuffer: 1024 * 100
+      });
+      
+      return res.json({
+        output: `$ ${command}\n\n${stdout}${stderr ? '\n' + stderr : ''}`,
+        stats: { sent: 2, received: 2, loss: 0, latency: 0.1 },
+        mode: 'expert',
+        wafActive: true
+      });
+    } catch (error: any) {
+      // Check for advanced bypass techniques
+      const output = (error.stdout || '') + (error.stderr || '');
+      let flag = undefined;
+      
+      // Bypass detection - using encoding, wildcards, etc.
+      if (output.includes('uid=') || output.includes('root:') || output.length > 200) {
+        flag = 'FLAG{CMDI_WAF_BYPASS_EXPERT}';
+      }
+      
+      return res.json({
+        output: `$ ${command}\n\n${output || error.message}`,
+        stats: { sent: 2, received: 0, loss: 100, latency: 0 },
+        mode: 'expert',
+        wafActive: true,
+        flag
+      });
+    }
   });
 
   // ==========================================
