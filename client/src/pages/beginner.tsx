@@ -8,9 +8,9 @@ const labs = [
   {
     id: 'sqli',
     title: 'SQL Injection',
-    description: 'Bypass authentication and extract data from a banking portal by manipulating SQL queries.',
+    description: 'Master UNION-based attacks, column enumeration, table discovery, and data extraction on a banking portal.',
     category: 'Injection',
-    difficulty: 'Easy',
+    difficulty: 'Medium',
     color: '#dc2626',
     icon: Database,
     path: '/labs/beginner/sqli'
