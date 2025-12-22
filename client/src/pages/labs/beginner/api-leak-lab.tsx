@@ -2,7 +2,7 @@ import { useState } from 'react';
 
 type Mode = 'easy' | 'hard';
 
-export default function IdorLabPage() {
+export default function ApiLeakLabPage() {
   const [mode, setMode] = useState<Mode>('easy');
 
   return (
@@ -10,12 +10,12 @@ export default function IdorLabPage() {
       <nav className="bg-gray-800 shadow-lg border-b border-gray-700">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-purple-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-lg">S</span>
+            <div className="w-10 h-10 bg-sky-500 rounded-lg flex items-center justify-center">
+              <span className="text-white font-bold text-lg">D</span>
             </div>
             <div>
-              <span className="text-white font-semibold text-xl">IDOR & Predictable IDs Lab</span>
-              <p className="text-gray-400 text-sm">ShopMax - E-commerce Order System</p>
+              <span className="text-white font-semibold text-xl">API Data Leakage Lab</span>
+              <p className="text-gray-400 text-sm">DevPortal - Developer API Dashboard</p>
             </div>
           </div>
           <div className="flex items-center gap-4">
@@ -23,7 +23,7 @@ export default function IdorLabPage() {
               onClick={() => setMode('easy')}
               className={`px-4 py-2 rounded-lg font-medium transition-colors ${
                 mode === 'easy'
-                  ? 'bg-purple-600 text-white'
+                  ? 'bg-sky-500 text-white'
                   : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
               }`}
             >
@@ -37,7 +37,7 @@ export default function IdorLabPage() {
                   : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
               }`}
             >
-              Hard (Bypass Signature)
+              Hard (Bypass Protection)
             </button>
           </div>
         </div>
@@ -47,12 +47,12 @@ export default function IdorLabPage() {
         {mode === 'easy' && (
           <div className="bg-gray-800 border-b border-gray-700 px-4 py-3">
             <div className="max-w-7xl mx-auto">
-              <div className="bg-purple-900/50 border border-purple-600 rounded-lg p-4">
-                <h3 className="text-purple-400 font-semibold mb-2">Easy Mode - Sequential Order ID Exploitation</h3>
-                <div className="text-purple-200 text-sm space-y-1">
-                  <p><strong>Objective:</strong> Access other customers' orders using predictable sequential IDs</p>
-                  <p><strong>Your Orders:</strong> #1003, #1004 | <strong>Targets:</strong> #1001, #1002, #1005</p>
-                  <p><strong>Data Exposed:</strong> Full credit card numbers, CVV, shipping addresses</p>
+              <div className="bg-sky-900/50 border border-sky-600 rounded-lg p-4">
+                <h3 className="text-sky-400 font-semibold mb-2">Easy Mode - Debug Mode Exploitation</h3>
+                <div className="text-sky-200 text-sm space-y-1">
+                  <p><strong>Objective:</strong> Enable debug mode to expose sensitive API data and secrets</p>
+                  <p><strong>Target:</strong> Click "Enable Debug Mode" button to reveal secret keys and credentials</p>
+                  <p><strong>Techniques:</strong> Debug parameter manipulation, hidden endpoint discovery</p>
                 </div>
               </div>
             </div>
@@ -63,11 +63,11 @@ export default function IdorLabPage() {
           <div className="bg-gray-800 border-b border-gray-700 px-4 py-3">
             <div className="max-w-7xl mx-auto">
               <div className="bg-red-900/50 border border-red-600 rounded-lg p-4">
-                <h3 className="text-red-400 font-semibold mb-2">Hard Mode - Bypass Signature Validation</h3>
+                <h3 className="text-red-400 font-semibold mb-2">Hard Mode - Bypass Debug Protection</h3>
                 <div className="text-red-200 text-sm space-y-1">
-                  <p><strong>Objective:</strong> Bypass HMAC signature and session validation to access orders</p>
-                  <p><strong>Protections:</strong> X-Signature header, X-User-Session, IP whitelist</p>
-                  <p><strong>Techniques:</strong> Weak signature values, session manipulation, IP spoofing</p>
+                  <p><strong>Objective:</strong> Bypass production debug restrictions to access sensitive data</p>
+                  <p><strong>Protections:</strong> Debug parameter disabled, API auth required</p>
+                  <p><strong>Techniques:</strong> Header injection, legacy parameter discovery, API key guessing</p>
                 </div>
               </div>
             </div>
@@ -76,20 +76,20 @@ export default function IdorLabPage() {
 
         <div className="flex-1 p-4">
           <div className="max-w-7xl mx-auto h-full">
-            <div className="bg-white rounded-lg shadow-xl overflow-hidden h-full" style={{ minHeight: '600px' }}>
+            <div className="bg-gray-900 rounded-lg shadow-xl overflow-hidden h-full" style={{ minHeight: '600px' }}>
               {mode === 'easy' ? (
                 <iframe
-                  src="/vuln/shopmax/portal"
+                  src="/vuln/devportal/portal"
                   className="w-full h-full border-0"
                   style={{ minHeight: '600px' }}
-                  title="ShopMax - Easy Mode"
+                  title="DevPortal - Easy Mode"
                 />
               ) : (
                 <iframe
-                  src="/vuln/shopmax-secure/portal"
+                  src="/vuln/devportal-secure/portal"
                   className="w-full h-full border-0"
                   style={{ minHeight: '600px' }}
-                  title="ShopMax - Hard Mode"
+                  title="DevPortal - Hard Mode"
                 />
               )}
             </div>
@@ -99,11 +99,11 @@ export default function IdorLabPage() {
 
       <footer className="bg-gray-800 py-4 border-t border-gray-700">
         <div className="max-w-7xl mx-auto px-4 text-center text-gray-400 text-sm">
-          <p>IDOR & Predictable IDs Lab - Real Vulnerable Order System</p>
+          <p>API Data Leakage Lab - Real Vulnerable Developer Portal</p>
           <p className="mt-1 text-xs">
             {mode === 'easy' 
-              ? 'Change order IDs (1001-1005) to access other customers\' orders and payment data' 
-              : 'Use Burp Suite to bypass signature validation with header manipulation'}
+              ? 'Click Debug Mode button to expose secret keys, password hashes, and DB credentials' 
+              : 'Use Burp Suite to bypass debug restrictions with header/parameter manipulation'}
           </p>
         </div>
       </footer>

