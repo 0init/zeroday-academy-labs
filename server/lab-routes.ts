@@ -457,11 +457,6 @@ export function registerLabRoutes(app: Express) {
     <div class="comments">
       <h2>Comments (${xssComments.length})</h2>
       
-      <div class="flag-info">
-        <strong>Lab Objective:</strong> Inject JavaScript that executes in the browser.<br>
-        <strong>Stored XSS Flag:</strong> <code>FLAG{STORED_XSS_REAL_EXECUTION}</code> - Find it in the page source after successful XSS<br>
-        <strong>Hint:</strong> Try payloads like <code>&lt;script&gt;alert('XSS')&lt;/script&gt;</code> or <code>&lt;img src=x onerror=alert(1)&gt;</code>
-      </div>
       
       <form action="/vuln/xss/blog/comment" method="POST">
         <input type="text" name="author" placeholder="Your name" required>
@@ -538,11 +533,6 @@ export function registerLabRoutes(app: Express) {
     <div class="search-box">
       <h1>Search Articles</h1>
       
-      <div class="flag-info">
-        <strong>Lab Objective:</strong> Inject JavaScript via the search parameter.<br>
-        <strong>Reflected XSS Flag:</strong> <code>FLAG{REFLECTED_XSS_REAL_EXECUTION}</code><br>
-        <strong>Hint:</strong> Try URL: <code>/vuln/xss/search?q=&lt;script&gt;alert('XSS')&lt;/script&gt;</code>
-      </div>
       
       <form action="/vuln/xss/search" method="GET">
         <input type="text" name="q" placeholder="Search for articles..." value="${q.replace(/"/g, '&quot;')}">

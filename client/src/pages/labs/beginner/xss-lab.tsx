@@ -42,38 +42,6 @@ export default function XssLabPage() {
       </nav>
 
       <div className="flex-1 flex flex-col">
-        <div className="bg-gray-800 border-b border-gray-700 px-4 py-3">
-          <div className="max-w-7xl mx-auto">
-            <div className="bg-yellow-900/50 border border-yellow-600 rounded-lg p-4">
-              <h3 className="text-yellow-400 font-semibold mb-2">
-                {activeTab === 'stored' ? 'Stored XSS Attack' : 'Reflected XSS Attack'}
-              </h3>
-              {activeTab === 'stored' ? (
-                <div className="text-yellow-200 text-sm space-y-1">
-                  <p><strong>Objective:</strong> Inject JavaScript that executes when the page loads</p>
-                  <p><strong>How:</strong> Submit a comment with malicious JavaScript code</p>
-                  <p><strong>Payloads to try:</strong></p>
-                  <ul className="list-disc list-inside ml-4 font-mono text-xs">
-                    <li>&lt;script&gt;alert('XSS')&lt;/script&gt;</li>
-                    <li>&lt;img src=x onerror=alert('XSS')&gt;</li>
-                    <li>&lt;svg onload=alert('XSS')&gt;</li>
-                  </ul>
-                </div>
-              ) : (
-                <div className="text-yellow-200 text-sm space-y-1">
-                  <p><strong>Objective:</strong> Inject JavaScript via the URL parameter</p>
-                  <p><strong>How:</strong> Modify the search query to include JavaScript</p>
-                  <p><strong>Payloads to try:</strong></p>
-                  <ul className="list-disc list-inside ml-4 font-mono text-xs">
-                    <li>&lt;script&gt;alert('XSS')&lt;/script&gt;</li>
-                    <li>&lt;img src=x onerror=alert(document.domain)&gt;</li>
-                  </ul>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
         <div className="flex-1 p-4">
           <div className="max-w-7xl mx-auto h-full">
             <div className="bg-white rounded-lg shadow-xl overflow-hidden h-full" style={{ minHeight: '600px' }}>
