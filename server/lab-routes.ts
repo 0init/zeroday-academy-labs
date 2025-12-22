@@ -391,8 +391,183 @@ export function registerLabRoutes(app: Express) {
   });
 
   // ==========================================
-  // XSS LAB
+  // XSS LAB - Real Vulnerable HTML Pages
   // ==========================================
+  
+  // Stored XSS - Full vulnerable blog page (serves HTML directly)
+  app.get('/vuln/xss/blog', (_req: Request, res: Response) => {
+    const commentsHtml = xssComments.map(c => `
+      <div style="border: 1px solid #ddd; padding: 15px; margin: 10px 0; border-radius: 8px; background: #fff;">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+          <div style="width: 40px; height: 40px; background: #f97316; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold;">${c.author.charAt(0).toUpperCase()}</div>
+          <div>
+            <strong style="color: #333;">${c.author}</strong>
+            <span style="color: #888; font-size: 12px; margin-left: 10px;">${c.timestamp}</span>
+          </div>
+        </div>
+        <p style="color: #555; margin: 0;">${c.content}</p>
+      </div>
+    `).join('');
+
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <title>TechBlog - Web Security Article</title>
+  <meta charset="UTF-8">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; }
+    nav { background: #fff; padding: 15px 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); display: flex; align-items: center; gap: 10px; }
+    nav .logo { width: 35px; height: 35px; background: #f97316; border-radius: 6px; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; }
+    nav span { font-size: 18px; font-weight: 600; color: #333; }
+    .container { max-width: 800px; margin: 30px auto; padding: 0 20px; }
+    .article { background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+    .article img { width: 100%; height: 200px; object-fit: cover; }
+    .article-content { padding: 25px; }
+    .article h1 { color: #333; margin-bottom: 10px; }
+    .article p { color: #666; line-height: 1.6; margin-top: 15px; }
+    .comments { background: #fff; border-radius: 12px; padding: 25px; margin-top: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+    .comments h2 { color: #333; margin-bottom: 20px; }
+    form { margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+    form input, form textarea { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 6px; margin-bottom: 10px; font-size: 14px; }
+    form button { background: #f97316; color: white; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; font-weight: 600; }
+    form button:hover { background: #ea580c; }
+    .flag-info { background: #fef3c7; border: 1px solid #f59e0b; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+    .flag-info code { background: #fff; padding: 2px 6px; border-radius: 4px; font-family: monospace; }
+  </style>
+</head>
+<body>
+  <nav>
+    <div class="logo">TB</div>
+    <span>TechBlog</span>
+  </nav>
+  
+  <div class="container">
+    <div class="article">
+      <img src="https://images.unsplash.com/photo-1461749280684-dccba630e2f6?w=800&h=200&fit=crop" alt="Code">
+      <div class="article-content">
+        <span style="color: #f97316; font-size: 14px;">Technology</span>
+        <h1>The Future of Web Security in 2024</h1>
+        <p style="color: #888; font-size: 14px;">Published on January 15, 2024</p>
+        <p>As we move further into 2024, web security continues to evolve at a rapid pace. New vulnerabilities are discovered daily, and organizations must stay vigilant to protect their users and data.</p>
+        <p>One of the most common attack vectors remains Cross-Site Scripting (XSS), which allows attackers to inject malicious scripts into trusted websites.</p>
+      </div>
+    </div>
+    
+    <div class="comments">
+      <h2>Comments (${xssComments.length})</h2>
+      
+      <div class="flag-info">
+        <strong>Lab Objective:</strong> Inject JavaScript that executes in the browser.<br>
+        <strong>Stored XSS Flag:</strong> <code>FLAG{STORED_XSS_REAL_EXECUTION}</code> - Find it in the page source after successful XSS<br>
+        <strong>Hint:</strong> Try payloads like <code>&lt;script&gt;alert('XSS')&lt;/script&gt;</code> or <code>&lt;img src=x onerror=alert(1)&gt;</code>
+      </div>
+      
+      <form action="/vuln/xss/blog/comment" method="POST">
+        <input type="text" name="author" placeholder="Your name" required>
+        <textarea name="content" rows="4" placeholder="Write your comment..." required></textarea>
+        <button type="submit">Post Comment</button>
+      </form>
+      
+      <div id="comments-list">
+        ${commentsHtml}
+      </div>
+      
+      <!-- Hidden flag for XSS discovery -->
+      <div id="secret-flag" style="display:none;">FLAG{STORED_XSS_REAL_EXECUTION}</div>
+    </div>
+  </div>
+</body>
+</html>`;
+    
+    res.setHeader('Content-Type', 'text/html');
+    res.send(html);
+  });
+
+  // Handle comment submission (Stored XSS)
+  app.post('/vuln/xss/blog/comment', (req: Request, res: Response) => {
+    const { author, content } = req.body;
+    
+    if (author && content) {
+      xssComments.push({
+        id: xssComments.length + 1,
+        author: author,
+        content: content,
+        timestamp: 'Just now',
+        avatar: author.charAt(0).toUpperCase()
+      });
+    }
+    
+    res.redirect('/vuln/xss/blog');
+  });
+
+  // Reflected XSS - Search page (serves HTML directly)
+  app.get('/vuln/xss/search', (req: Request, res: Response) => {
+    const q = req.query.q as string || '';
+    
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <title>TechBlog - Search Results</title>
+  <meta charset="UTF-8">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; }
+    nav { background: #fff; padding: 15px 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); display: flex; align-items: center; gap: 10px; }
+    nav .logo { width: 35px; height: 35px; background: #f97316; border-radius: 6px; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; }
+    nav span { font-size: 18px; font-weight: 600; color: #333; }
+    .container { max-width: 800px; margin: 30px auto; padding: 0 20px; }
+    .search-box { background: #fff; border-radius: 12px; padding: 25px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+    .search-box h1 { color: #333; margin-bottom: 20px; }
+    form { display: flex; gap: 10px; margin-bottom: 20px; }
+    form input { flex: 1; padding: 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+    form button { background: #f97316; color: white; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; font-weight: 600; }
+    .results { margin-top: 20px; padding: 20px; background: #f9f9f9; border-radius: 8px; }
+    .results p { color: #555; }
+    .flag-info { background: #fef3c7; border: 1px solid #f59e0b; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+    .flag-info code { background: #fff; padding: 2px 6px; border-radius: 4px; font-family: monospace; }
+  </style>
+</head>
+<body>
+  <nav>
+    <div class="logo">TB</div>
+    <span>TechBlog</span>
+  </nav>
+  
+  <div class="container">
+    <div class="search-box">
+      <h1>Search Articles</h1>
+      
+      <div class="flag-info">
+        <strong>Lab Objective:</strong> Inject JavaScript via the search parameter.<br>
+        <strong>Reflected XSS Flag:</strong> <code>FLAG{REFLECTED_XSS_REAL_EXECUTION}</code><br>
+        <strong>Hint:</strong> Try URL: <code>/vuln/xss/search?q=&lt;script&gt;alert('XSS')&lt;/script&gt;</code>
+      </div>
+      
+      <form action="/vuln/xss/search" method="GET">
+        <input type="text" name="q" placeholder="Search for articles..." value="${q.replace(/"/g, '&quot;')}">
+        <button type="submit">Search</button>
+      </form>
+      
+      ${q ? `
+      <div class="results">
+        <p>Search results for: <strong>${q}</strong></p>
+        <p style="margin-top: 10px; color: #888;">No articles found matching your query.</p>
+      </div>
+      ` : ''}
+      
+      <!-- Hidden flag for XSS discovery -->
+      <div id="secret-flag" style="display:none;">FLAG{REFLECTED_XSS_REAL_EXECUTION}</div>
+    </div>
+  </div>
+</body>
+</html>`;
+    
+    res.setHeader('Content-Type', 'text/html');
+    res.send(html);
+  });
+
+  // Keep JSON API for backward compatibility
   app.get('/api/labs/xss/comments', (_req: Request, res: Response) => {
     res.json({ comments: xssComments });
   });
